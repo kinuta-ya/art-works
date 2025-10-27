@@ -1,0 +1,151 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply box-border;
+  }
+
+  body {
+    @apply m-0 p-0 min-h-screen bg-gradient-to-br from-vaporwave-dark via-vaporwave-purple to-vaporwave-dark;
+    @apply text-white antialiased;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+      'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+      sans-serif;
+  }
+
+  /* CRT scanline effect */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0.15),
+      rgba(0, 0, 0, 0.15) 1px,
+      transparent 1px,
+      transparent 2px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
+}
+
+@layer components {
+  /* 8bit button style */
+  .btn-8bit {
+    @apply px-6 py-3 font-pixel text-xs;
+    @apply bg-neon-pink text-white;
+    @apply border-4 border-white;
+    @apply shadow-lg hover:shadow-neon-cyan;
+    @apply transition-all duration-200;
+    @apply cursor-pointer;
+    image-rendering: pixelated;
+  }
+
+  .btn-8bit:hover {
+    @apply -translate-y-1 shadow-xl;
+    box-shadow: 0 0 20px rgba(0, 240, 255, 0.8);
+  }
+
+  .btn-8bit:active {
+    @apply translate-y-0;
+  }
+
+  /* Glitch text effect */
+  .text-glitch {
+    position: relative;
+    animation: glitch 1s linear infinite;
+  }
+
+  .text-glitch::before,
+  .text-glitch::after {
+    content: attr(data-text);
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .text-glitch::before {
+    left: 2px;
+    text-shadow: -2px 0 #ff00c1;
+    clip: rect(44px, 450px, 56px, 0);
+    animation: glitch-anim 5s infinite linear alternate-reverse;
+  }
+
+  .text-glitch::after {
+    left: -2px;
+    text-shadow: -2px 0 #00fff9;
+    clip: rect(44px, 450px, 56px, 0);
+    animation: glitch-anim2 5s infinite linear alternate-reverse;
+  }
+
+  /* Card with neon border */
+  .card-neon {
+    @apply bg-vaporwave-purple/30 backdrop-blur-sm;
+    @apply border-2 border-neon-cyan;
+    @apply rounded-lg p-6;
+    @apply shadow-lg;
+    box-shadow: 0 0 20px rgba(0, 240, 255, 0.3);
+  }
+
+  .card-neon:hover {
+    box-shadow: 0 0 30px rgba(0, 240, 255, 0.5);
+  }
+}
+
+@layer utilities {
+  .text-shadow-neon {
+    text-shadow: 0 0 10px currentColor, 0 0 20px currentColor;
+  }
+}
+
+@keyframes glitch-anim {
+  0% {
+    clip: rect(10px, 9999px, 31px, 0);
+  }
+  20% {
+    clip: rect(85px, 9999px, 140px, 0);
+  }
+  40% {
+    clip: rect(65px, 9999px, 119px, 0);
+  }
+  60% {
+    clip: rect(60px, 9999px, 85px, 0);
+  }
+  80% {
+    clip: rect(36px, 9999px, 56px, 0);
+  }
+  100% {
+    clip: rect(68px, 9999px, 105px, 0);
+  }
+}
+
+@keyframes glitch-anim2 {
+  0% {
+    clip: rect(65px, 9999px, 100px, 0);
+  }
+  20% {
+    clip: rect(40px, 9999px, 66px, 0);
+  }
+  40% {
+    clip: rect(85px, 9999px, 103px, 0);
+  }
+  60% {
+    clip: rect(14px, 9999px, 56px, 0);
+  }
+  80% {
+    clip: rect(97px, 9999px, 150px, 0);
+  }
+  100% {
+    clip: rect(31px, 9999px, 62px, 0);
+  }
+}
