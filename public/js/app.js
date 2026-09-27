@@ -1,0 +1,953 @@
+// 画面（ライブラリ・再生画面・EQ・聴力テスト・設定）
+(function (MP) {
+  'use strict';
+
+  // ---------- アイコン ----------
+  const ICONS = {
+    albums: '<rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/>',
+    songs: '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
+    eq: '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
+    ear: '<path d="M6 8.5a6 6 0 1 1 12 0c0 3.5-3 4.5-3 7.5a3.5 3.5 0 0 1-6.3 2.1"/><path d="M9 9a3 3 0 1 1 5 2.2c-1 .8-1 1.3-1 2.3"/>',
+    settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+    play: '<path d="M7 4.5v15a1 1 0 0 0 1.5.9l12-7.5a1 1 0 0 0 0-1.8l-12-7.5A1 1 0 0 0 7 4.5z" fill="currentColor" stroke="none"/>',
+    pause: '<rect x="6" y="4" width="4.2" height="16" rx="1.2" fill="currentColor" stroke="none"/><rect x="13.8" y="4" width="4.2" height="16" rx="1.2" fill="currentColor" stroke="none"/>',
+    next: '<path d="M4 5.5v13a1 1 0 0 0 1.6.8L14 13v5.5a1 1 0 0 0 1.6.8l6-6.5a1 1 0 0 0 0-1.6l-6-6.5a1 1 0 0 0-1.6.8V11L5.6 4.7A1 1 0 0 0 4 5.5z" fill="currentColor" stroke="none"/>',
+    prev: '<path d="M20 5.5v13a1 1 0 0 1-1.6.8L10 13v5.5a1 1 0 0 1-1.6.8l-6-6.5a1 1 0 0 1 0-1.6l6-6.5a1 1 0 0 1 1.6.8V11l8.4-6.3A1 1 0 0 1 20 5.5z" fill="currentColor" stroke="none"/>',
+    shuffle: '<path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/>',
+    repeat: '<path d="m17 1 4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>',
+    down: '<path d="m6 9 6 6 6-6"/>',
+    back: '<path d="m15 18-6-6 6-6"/>',
+    folder: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    spark: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8"/>',
+  };
+  const icon = (name) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
+
+  const NAV = [
+    { id: 'albums', label: 'アルバム', icon: 'albums' },
+    { id: 'songs', label: '曲', icon: 'songs' },
+    { id: 'eq', label: 'EQ', icon: 'eq' },
+    { id: 'hearing', label: '聴力補正', icon: 'ear' },
+    { id: 'settings', label: '設定', icon: 'settings' },
+  ];
+
+  // ---------- 保存（localStorage は使えないこともある） ----------
+  const store = {
+    get(key, def) { try { const v = localStorage.getItem('tp.' + key); return v == null ? def : JSON.parse(v); } catch (e) { return def; } },
+    set(key, val) { try { localStorage.setItem('tp.' + key, JSON.stringify(val)); } catch (e) { /* 保存できなくても動作は続ける */ } },
+  };
+
+  // ---------- 状態 ----------
+  const S = {
+    tracks: [],
+    albums: [],
+    albumMap: new Map(),
+    view: 'albums',
+    albumKey: null,
+    search: '',
+    shuffle: false,
+    repeat: false,
+    baseQueue: [],
+    eqPreset: store.get('eqPreset', 'flat'),
+    profiles: store.get('profiles', []),
+    activeProfile: store.get('activeProfile', null),
+    test: null,
+  };
+
+  const saved = store.get('settings', {});
+  const engine = new MP.Engine({
+    mode: saved.mode || 'gapless',
+    crossfadeSec: saved.crossfadeSec || 6,
+    levelMatch: saved.levelMatch !== false,
+    albumGapless: saved.albumGapless !== false,
+    followRate: saved.followRate !== false,
+    volume: 1,
+    eqEnabled: !!saved.eqEnabled,
+    eqBands: saved.eqBands || null,
+    hearingEnabled: !!saved.hearingEnabled,
+    hearingProfile: S.profiles.find((p) => p.id === S.activeProfile) || null,
+  });
+  if (!engine.s.hearingProfile) engine.s.hearingEnabled = false;
+
+  function saveSettings() {
+    const s = engine.s;
+    store.set('settings', {
+      mode: s.mode, crossfadeSec: s.crossfadeSec, levelMatch: s.levelMatch, albumGapless: s.albumGapless,
+      followRate: s.followRate, eqEnabled: s.eqEnabled, eqBands: s.eqBands, hearingEnabled: s.hearingEnabled,
+    });
+  }
+
+  // ---------- 小物 ----------
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const fmtTime = (sec) => {
+    if (!Number.isFinite(sec) || sec < 0) sec = 0;
+    const m = Math.floor(sec / 60), s = Math.floor(sec % 60);
+    return `${m}:${String(s).padStart(2, '0')}`;
+  };
+  const fmtRate = (r) => (r ? (r % 1000 === 0 ? r / 1000 : (r / 1000).toFixed(1)) + 'kHz' : '');
+  const fmtFormat = (t) => [t.codec, t.sampleRate ? fmtRate(t.sampleRate) + (t.bitDepth ? '/' + t.bitDepth + 'bit' : '') : ''].filter(Boolean).join(' ');
+  const fmtHz = (f) => (f >= 1000 ? (f / 1000).toFixed(f % 1000 ? 1 : 0) + 'kHz' : Math.round(f) + 'Hz');
+
+  let toastTimer;
+  function toast(msg, ms = 2600) {
+    const el = $('#toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    if (ms) toastTimer = setTimeout(() => el.classList.remove('show'), ms);
+  }
+
+  // ジャケットが無いときの画像
+  const PLACEHOLDER = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#2a2622"/><text x="50" y="64" font-size="40" text-anchor="middle" fill="#a39a90">♪</text></svg>');
+
+  function artHtml(album, cls = 'art') {
+    if (album && album.artUrl) return `<img class="${cls}" src="${esc(album.artUrl)}" alt="" loading="lazy">`;
+    const ch = (album && album.title ? album.title.trim()[0] : '♪') || '♪';
+    return `<span class="${cls} art-ph" aria-hidden="true">${esc(ch)}</span>`;
+  }
+
+  // ---------- ライブラリ ----------
+  let nextId = 1;
+  function albumKeyOf(t) { return JSON.stringify([t.albumArtist || t.artist, t.album]); }
+
+  function addTracks(list) {
+    const known = new Set(S.tracks.map((t) => t.path));
+    for (const t of list) {
+      if (known.has(t.path)) continue;
+      t.id = 't' + nextId++;
+      S.tracks.push(t);
+    }
+    rebuildAlbums();
+  }
+
+  function rebuildAlbums() {
+    const map = new Map();
+    for (const t of S.tracks) {
+      const key = albumKeyOf(t);
+      if (!map.has(key)) map.set(key, { key, title: t.album, artist: t.albumArtist || t.artist, year: t.year, tracks: [], artUrl: null });
+      const a = map.get(key);
+      a.tracks.push(t);
+      if (!a.artUrl && t.artUrl) a.artUrl = t.artUrl;
+      if (!a.year && t.year) a.year = t.year;
+    }
+    for (const a of map.values()) {
+      a.tracks.sort((x, y) => (x.disc || 1) - (y.disc || 1) || (x.track ?? 999) - (y.track ?? 999) || x.path.localeCompare(y.path));
+      for (const t of a.tracks) if (!t.artUrl) t.artUrl = a.artUrl;
+    }
+    S.albumMap = map;
+    S.albums = [...map.values()].sort((a, b) => a.artist.localeCompare(b.artist, 'ja') || a.title.localeCompare(b.title, 'ja'));
+    S.tracks.sort((a, b) => {
+      const A = S.albumMap.get(albumKeyOf(a)), B = S.albumMap.get(albumKeyOf(b));
+      return S.albums.indexOf(A) - S.albums.indexOf(B) || A.tracks.indexOf(a) - B.tracks.indexOf(b);
+    });
+  }
+
+  async function importFiles(fileList) {
+    const files = [...fileList];
+    const audio = files.filter((f) => MP.metadata.isAudio(f.name));
+    if (!audio.length) { toast('音楽ファイルが見つかりませんでした'); return; }
+    // フォルダー内のジャケット画像（cover.jpg / folder.jpg など）
+    const covers = new Map();
+    for (const f of files) {
+      if (!MP.metadata.isImage(f.name)) continue;
+      const path = f.webkitRelativePath || f.name;
+      const dir = path.split('/').slice(0, -1).join('/');
+      const base = f.name.toLowerCase();
+      const score = /^(cover|folder|front)\./.test(base) ? 2 : /cover|front|folder|album/.test(base) ? 1 : 0;
+      const cur = covers.get(dir);
+      if (!cur || score > cur.score) covers.set(dir, { file: f, score });
+    }
+    const coverUrls = new Map();
+    const coverFor = (dir) => {
+      if (!covers.has(dir)) return null;
+      if (!coverUrls.has(dir)) coverUrls.set(dir, URL.createObjectURL(covers.get(dir).file));
+      return coverUrls.get(dir);
+    };
+
+    const out = [];
+    let done = 0;
+    const queue = [...audio];
+    const worker = async () => {
+      while (queue.length) {
+        const f = queue.shift();
+        const meta = await MP.metadata.parse(f);
+        meta.file = f;
+        meta.artUrl = meta.picture ? URL.createObjectURL(meta.picture) : coverFor(meta.dir);
+        delete meta.picture;
+        out.push(meta);
+        done++;
+        if (done % 10 === 0 || done === audio.length) toast(`読み込み中… ${done} / ${audio.length}`, 0);
+      }
+    };
+    await Promise.all(Array.from({ length: 6 }, worker));
+    addTracks(out);
+    toast(`${out.length} 曲を追加しました`);
+    render();
+  }
+
+  function addDemo() {
+    addTracks(MP.demoTracks.create());
+    toast('デモアルバムを 2 枚追加しました');
+    render();
+  }
+
+  // ---------- 再生 ----------
+  function playList(list, index) {
+    S.baseQueue = list.slice();
+    let queue = list.slice();
+    if (S.shuffle) {
+      const first = queue.splice(index, 1)[0];
+      shuffleInPlace(queue);
+      queue.unshift(first);
+      index = 0;
+    }
+    engine.play(queue, index, 0);
+  }
+
+  function shuffleInPlace(a) {
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function toggleShuffle() {
+    S.shuffle = !S.shuffle;
+    const cur = engine.queue[engine.index];
+    if (cur) {
+      if (S.shuffle) {
+        const rest = engine.queue.filter((t) => t !== cur);
+        engine.setQueue([cur, ...shuffleInPlace(rest)], 0);
+      } else {
+        const base = S.baseQueue.length ? S.baseQueue : engine.queue;
+        engine.setQueue(base, Math.max(0, base.indexOf(cur)));
+      }
+    }
+    updateNow();
+  }
+
+  function toggleRepeat() {
+    S.repeat = !S.repeat;
+    engine.repeat = S.repeat;
+    engine.reschedule();
+    updateNow();
+  }
+
+  // ---------- 描画：ナビ ----------
+  function renderNav() {
+    for (const group of $$('[data-navgroup]')) {
+      group.innerHTML = NAV.map((n) => `<button data-nav="${n.id}" ${S.view === n.id || (n.id === 'albums' && S.view === 'album') ? 'aria-current="page"' : ''}>${icon(n.icon)}<span>${n.label}</span></button>`).join('');
+    }
+  }
+
+  function render() {
+    renderNav();
+    const v = $('#view');
+    const fn = VIEWS[S.view] || VIEWS.albums;
+    v.innerHTML = fn();
+    if (AFTER[S.view]) AFTER[S.view]();
+  }
+
+  function go(view, extra = {}) {
+    if (S.test && view !== 'hearing') { S.test.close(); S.test = null; }
+    Object.assign(S, { view }, extra);
+    render();
+    $('#view').scrollTop = 0;
+  }
+
+  const libraryActions = () => `
+    <div class="actions">
+      <button class="btn primary" data-action="pick-dir">${icon('folder')}フォルダーを読み込む</button>
+      <button class="btn" data-action="pick-files">${icon('plus')}ファイルを追加</button>
+      <button class="btn" data-action="demo">${icon('spark')}デモ音源</button>
+    </div>`;
+
+  const emptyLibrary = () => `
+    <div class="empty">
+      <h2>ライブラリは空です</h2>
+      <p>SD カードの音楽フォルダーを選ぶと、タグを読み取ってアルバムごとに並べます。<br>
+      音源が手元に無い場合は「デモ音源」で、ギャップレスとスマートクロスフェードを試せます。</p>
+      ${libraryActions()}
+    </div>`;
+
+  // ---------- 描画：各画面 ----------
+  const VIEWS = {
+    albums() {
+      if (!S.albums.length) return `<h1>ライブラリ</h1>${emptyLibrary()}`;
+      return `
+        <div class="page-head"><h1>ライブラリ</h1>${libraryActions()}</div>
+        <p class="muted">${S.albums.length} アルバム ・ ${S.tracks.length} 曲</p>
+        <div class="albums">
+          ${S.albums.map((a) => `
+            <button class="album-card" data-album="${esc(a.key)}">
+              ${artHtml(a)}
+              <div class="t">${esc(a.title)}</div>
+              <div class="a">${esc(a.artist)}</div>
+            </button>`).join('')}
+        </div>`;
+    },
+
+    album() {
+      const a = S.albumMap.get(S.albumKey);
+      if (!a) return VIEWS.albums();
+      const total = a.tracks.reduce((s, t) => s + (t.duration || 0), 0);
+      const formats = [...new Set(a.tracks.map(fmtFormat))];
+      const cur = engine.queue[engine.index];
+      return `
+        <button class="back" data-nav="albums">${icon('back')}ライブラリ</button>
+        <div class="album-hero">
+          ${artHtml(a)}
+          <div>
+            <h1>${esc(a.title)}</h1>
+            <div class="artist">${esc(a.artist)}</div>
+            <div class="meta">
+              ${a.year ? `<span>${esc(a.year)}</span>・` : ''}<span>${a.tracks.length} 曲</span>・<span>${Math.round(total / 60)} 分</span>
+              ${formats.slice(0, 2).map((f) => `<span class="fmt">${esc(f)}</span>`).join('')}
+            </div>
+            <div class="actions">
+              <button class="btn primary" data-action="play-album">${icon('play')}再生</button>
+              <button class="btn" data-action="shuffle-album">${icon('shuffle')}シャッフル</button>
+            </div>
+          </div>
+        </div>
+        <ol class="tracks">
+          ${a.tracks.map((t, i) => `
+            <li><button class="row ${cur === t ? 'playing' : ''}" data-play-album-index="${i}">
+              <span class="num">${t.track ?? i + 1}</span>
+              <span class="main">
+                <div class="title">${esc(t.title)}</div>
+                ${t.artist !== a.artist ? `<div class="sub">${esc(t.artist)}</div>` : ''}
+              </span>
+              <span class="dur">${fmtTime(t.duration)}</span>
+            </button></li>`).join('')}
+        </ol>`;
+    },
+
+    songs() {
+      if (!S.tracks.length) return `<h1>曲</h1>${emptyLibrary()}`;
+      return `
+        <h1>曲</h1>
+        <input class="search" type="search" placeholder="曲名・アーティスト・アルバムで検索" value="${esc(S.search)}" data-search>
+        <ol class="tracks" data-songlist>${songRows()}</ol>`;
+    },
+
+    eq() {
+      const s = engine.s;
+      return `
+        <h1>EQ</h1>
+        <div class="card">
+          <label class="switch"><span class="label">EQ を使う<small>オフのときは処理経路から完全に外れます（素通し）</small></span>
+            <input type="checkbox" role="switch" data-eq-toggle ${s.eqEnabled ? 'checked' : ''}></label>
+        </div>
+        <div class="card">
+          <canvas class="eq-graph" data-eq-graph></canvas>
+          <div class="legend">
+            <span><i style="background:var(--accent)"></i>合成特性</span>
+            <span data-preamp></span>
+          </div>
+        </div>
+        <h2>プリセット</h2>
+        <div class="chips">
+          ${MP.eq.PRESETS.map((p) => `<button class="chip" data-preset="${p.id}" aria-pressed="${S.eqPreset === p.id}">${esc(p.name)}</button>`).join('')}
+          ${S.eqPreset === 'custom' ? '<button class="chip" aria-pressed="true">カスタム</button>' : ''}
+          ${S.eqPreset === 'autoeq' ? '<button class="chip" aria-pressed="true">AutoEQ</button>' : ''}
+        </div>
+        <h2>バンド</h2>
+        <div class="card bands" data-bands>${bandRows()}</div>
+        <h2>AutoEQ を読み込む</h2>
+        <div class="card">
+          <p class="note" style="margin-top:0">AutoEQ の <code>ParametricEQ.txt</code> の内容を貼り付けてください。お使いのイヤホン・ヘッドホン向けの補正カーブを適用できます。</p>
+          <textarea data-autoeq placeholder="Preamp: -6.2 dB&#10;Filter 1: ON LSC Fc 105 Hz Gain 5.5 dB Q 0.70&#10;Filter 2: ON PK Fc 3000 Hz Gain -2.1 dB Q 1.41"></textarea>
+          <div class="actions" style="margin-top:10px"><button class="btn" data-action="import-autoeq">読み込む</button></div>
+        </div>
+        <p class="note">プリアンプは、ブーストした分だけ自動で音量を下げて音割れを防ぎます。処理は 32bit 浮動小数点です。</p>`;
+    },
+
+    hearing() {
+      if (S.test) return testView();
+      const active = S.profiles.find((p) => p.id === S.activeProfile);
+      return `
+        <h1>聴力補正</h1>
+        <p class="muted">左右の耳それぞれで、周波数ごとに聞こえる最小の音量を測り、聞こえにくい帯域だけを少し持ち上げる補正カーブを作ります。</p>
+        <div class="warning">医療用の検査ではありません。耳に違和感がある場合は専門医に相談してください。テスト音は小さい音から始まります。</div>
+        <div class="card">
+          <label class="switch"><span class="label">聴力補正を使う<small>${active ? esc(active.name) : 'プロファイルがありません'}</small></span>
+            <input type="checkbox" role="switch" data-hearing-toggle ${engine.s.hearingEnabled ? 'checked' : ''} ${active ? '' : 'disabled'}></label>
+        </div>
+        ${active ? `
+          <div class="card">
+            <div class="card-head"><span>補正カーブ</span></div>
+            <canvas class="eq-graph" data-hearing-graph></canvas>
+            <div class="legend">
+              <span><i style="background:var(--info)"></i>左耳</span>
+              <span><i style="background:var(--danger)"></i>右耳</span>
+            </div>
+            <div class="slider-row">
+              <label for="h-strength">補正の強さ</label><output data-strength-out>${Math.round(active.strength * 100)}%</output>
+              <input id="h-strength" type="range" min="0" max="100" value="${Math.round(active.strength * 100)}" data-h-strength>
+            </div>
+            <div class="slider-row">
+              <label for="h-max">最大ブースト</label><output data-max-out>${active.maxBoost}dB</output>
+              <input id="h-max" type="range" min="2" max="15" value="${active.maxBoost}" data-h-max>
+            </div>
+          </div>` : ''}
+        <h2>プロファイル</h2>
+        <div class="card">
+          ${S.profiles.length ? S.profiles.map((p) => `
+            <div class="profile">
+              <input type="radio" name="profile" data-profile="${p.id}" ${p.id === S.activeProfile ? 'checked' : ''} aria-label="${esc(p.name)} を使う">
+              <span class="name">${esc(p.name)}<small>${new Date(p.createdAt).toLocaleDateString('ja-JP')} ・ ${Object.keys(p.thresholds.L).length} 周波数</small></span>
+              <button class="btn" data-delete-profile="${p.id}">削除</button>
+            </div>`).join('') : '<p class="muted" style="margin:0">まだありません。テストを受けると作成されます。</p>'}
+        </div>
+        <p class="note">イヤホン・ヘッドホンと、M8T のアンプモード（真空管 / トランジスタ）の組み合わせごとにプロファイルを作るのがおすすめです。</p>
+        <div class="actions" style="margin-top:14px">
+          <button class="btn primary" data-action="start-test" data-test-kind="quick">クイックテスト（5 周波数）</button>
+          <button class="btn" data-action="start-test" data-test-kind="full">詳細テスト（9 周波数）</button>
+        </div>`;
+    },
+
+    settings() {
+      const s = engine.s;
+      return `
+        <h1>設定</h1>
+        <h2>ノンストップモード</h2>
+        <div class="mode-cards" role="radiogroup">
+          <button class="mode-card" role="radio" aria-checked="${s.mode === 'gapless'}" data-action="mode" data-mode="gapless">
+            <strong>ギャップレス</strong>
+            <span>曲の継ぎ目に無音をはさまず、そのままつなぎます。音には一切手を加えません。ライブ盤やクラシック、コンセプトアルバム向け。</span>
+          </button>
+          <button class="mode-card" role="radio" aria-checked="${s.mode === 'crossfade'}" data-action="mode" data-mode="crossfade">
+            <strong>スマートクロスフェード</strong>
+            <span>曲の頭と終わりの無音を飛ばし、フェードアウトを検出して長さを合わせ、等パワーカーブで重ねます。シャッフルやプレイリスト向け。</span>
+          </button>
+        </div>
+        <div class="card">
+          <div class="slider-row">
+            <label for="xf">クロスフェードの長さ（基準）</label><output data-xf-out>${s.crossfadeSec} 秒</output>
+            <input id="xf" type="range" min="2" max="12" step="1" value="${s.crossfadeSec}" data-xf>
+          </div>
+          <p class="note" style="margin-top:0">曲にフェードアウトがある場合は、その長さに合わせて自動で調整します。</p>
+          <label class="switch"><span class="label">音量差をなめらかにする<small>クロスフェード時、次の曲の音量を前の曲に合わせ、6 秒かけて元に戻します（最大 ±6dB）</small></span>
+            <input type="checkbox" role="switch" data-setting="levelMatch" ${s.levelMatch ? 'checked' : ''}></label>
+          <label class="switch"><span class="label">同じアルバムの連続トラックはギャップレス<small>アルバムの流れを壊さないよう、クロスフェードしません</small></span>
+            <input type="checkbox" role="switch" data-setting="albumGapless" ${s.albumGapless ? 'checked' : ''}></label>
+        </div>
+        <h2>出力</h2>
+        <div class="card">
+          <label class="switch"><span class="label">出力サンプルレートを音源に合わせる<small>再生開始時に、音源と同じレートで出力を開き直します（ブラウザが対応している範囲で）</small></span>
+            <input type="checkbox" role="switch" data-setting="followRate" ${s.followRate ? 'checked' : ''}></label>
+        </div>
+        <h2>Web デモについて</h2>
+        <div class="card">
+          <p style="margin-top:0">これは M8T 向け Android アプリの画面と機能の試作です。ブラウザでは次の限界があります。</p>
+          <ul class="muted" style="margin:0;padding-left:1.2em">
+            <li>出力は OS のミキサーを通るため、ビットパーフェクトにはなりません。</li>
+            <li>ALAC と DSD の再生はブラウザ次第です（Chrome は非対応）。</li>
+            <li>再読み込みするとライブラリが消えます。</li>
+          </ul>
+        </div>`;
+    },
+  };
+
+  const AFTER = {
+    eq: drawEq,
+    hearing() { if (!S.test) drawHearing(); },
+  };
+
+  function songRows() {
+    const q = S.search.trim().toLowerCase();
+    const list = q ? S.tracks.filter((t) => `${t.title} ${t.artist} ${t.album}`.toLowerCase().includes(q)) : S.tracks;
+    const cur = engine.queue[engine.index];
+    return list.slice(0, 2000).map((t) => `
+      <li><button class="row thumb ${cur === t ? 'playing' : ''}" data-play-track="${t.id}">
+        ${artHtml(S.albumMap.get(albumKeyOf(t)))}
+        <span class="main"><div class="title">${esc(t.title)}</div><div class="sub">${esc(t.artist)} ・ ${esc(t.album)}</div></span>
+        <span class="dur">${fmtTime(t.duration)}</span>
+      </button></li>`).join('') || '<li class="muted" style="padding:12px 0">見つかりませんでした</li>';
+  }
+
+  // ---------- EQ ----------
+  function bandRows() {
+    return engine.s.eqBands.map((b, i) => `
+      <div class="band" data-band="${i}">
+        <span class="freq">${fmtHz(b.freq)}</span>
+        <input type="range" min="-12" max="12" step="0.5" value="${b.gain}" data-band-gain aria-label="${fmtHz(b.freq)} のゲイン">
+        <span class="val" data-band-val>${b.gain > 0 ? '+' : ''}${b.gain.toFixed(1)}dB</span>
+        <div class="detail">
+          <select data-band-type aria-label="種類">${Object.entries(MP.eq.TYPES).map(([k, v]) => `<option value="${k}" ${b.type === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
+          <label>周波数 <input type="number" min="20" max="20000" step="1" value="${Math.round(b.freq)}" data-band-freq></label>
+          <label>Q <input type="number" min="0.1" max="10" step="0.05" value="${b.q}" data-band-q></label>
+        </div>
+      </div>`).join('');
+  }
+
+  const graphFreqs = MP.eq.logFreqs(240);
+  function drawEq() {
+    const c = $('[data-eq-graph]');
+    if (!c) return;
+    const data = MP.eq.responseDb(engine.s.eqBands, graphFreqs);
+    const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+    MP.eq.draw(c, [{ data, color: accent, width: 2.5 }], {
+      freqs: graphFreqs,
+      points: engine.s.eqBands.filter((b) => b.enabled).map((b) => ({ freq: b.freq, gain: b.gain, color: accent })),
+    });
+    const pre = MP.eq.autoPreamp([data]);
+    const el = $('[data-preamp]');
+    if (el) el.textContent = pre < 0 ? `自動プリアンプ ${pre.toFixed(1)}dB` : 'プリアンプ 0dB';
+  }
+
+  function setBands(bands, presetId) {
+    S.eqPreset = presetId;
+    store.set('eqPreset', presetId);
+    engine.update({ eqBands: bands });
+    saveSettings();
+  }
+
+  // ---------- 聴力テスト ----------
+  function drawHearing() {
+    const c = $('[data-hearing-graph]');
+    const p = S.profiles.find((x) => x.id === S.activeProfile);
+    if (!c || !p) return;
+    const css = getComputedStyle(document.documentElement);
+    const toBands = (ear) => p[ear].map((x) => ({ type: 'peaking', freq: x.freq, gain: x.gain, q: 1.4, enabled: true }));
+    MP.eq.draw(c, [
+      { data: MP.eq.responseDb(toBands('L'), graphFreqs), color: css.getPropertyValue('--info').trim() },
+      { data: MP.eq.responseDb(toBands('R'), graphFreqs), color: css.getPropertyValue('--danger').trim(), dash: [6, 4] },
+    ], { freqs: graphFreqs, range: 15 });
+  }
+
+  function testView() {
+    const t = S.test;
+    if (t.phase === 'calibrate') {
+      return `
+        <h1>聴力テスト</h1>
+        <div class="card">
+          <div class="card-head"><span>1. 音量の準備</span></div>
+          <p style="margin-top:0">静かな場所で、いつものイヤホン・ヘッドホンを付けてください。M8T のアンプモードもいつもの設定にします。</p>
+          <p>「基準音」を鳴らし、<strong>小さいけれどはっきり聞こえる</strong>音量に DAP のボリュームを合わせてください。テスト中はボリュームを変えないでください。</p>
+          <div class="actions">
+            <button class="btn" data-action="ref-tone">${icon('play')}基準音を鳴らす</button>
+            <button class="btn primary" data-action="begin-test">テストを始める</button>
+            <button class="btn" data-action="cancel-test">やめる</button>
+          </div>
+        </div>`;
+    }
+    if (t.phase === 'done') {
+      return `
+        <h1>聴力テスト</h1>
+        <div class="card">
+          <div class="card-head"><span>完了しました</span></div>
+          <label>プロファイル名
+            <input class="search" style="margin-top:6px" data-profile-name value="${esc(t.defaultName)}">
+          </label>
+          <p class="note" style="margin-top:0">例：「M8T 真空管 + 〇〇（イヤホン名）」</p>
+          <div class="actions">
+            <button class="btn primary" data-action="save-profile">保存して使う</button>
+            <button class="btn" data-action="cancel-test">保存しない</button>
+          </div>
+        </div>`;
+    }
+    const { ear, freq } = t.test.step;
+    return `
+      <h1>聴力テスト</h1>
+      <div class="progress" aria-hidden="true"><span style="width:${Math.round(t.test.progress * 100)}%"></span></div>
+      <div class="test-stage">
+        <div class="test-ear">${ear === 'L' ? '左耳' : '右耳'}</div>
+        <div class="test-freq">${fmtHz(freq)}</div>
+        <div class="muted" data-test-status>ピッ・ピッ・ピッという音が聞こえましたか？</div>
+      </div>
+      <div class="test-buttons">
+        <button class="btn" data-action="answer" data-heard="0">聞こえない</button>
+        <button class="btn primary" data-action="answer" data-heard="1">聞こえた</button>
+      </div>
+      <div class="actions" style="justify-content:center;margin-top:12px">
+        <button class="btn" data-action="replay-tone">もう一度鳴らす</button>
+        <button class="btn" data-action="cancel-test">中止</button>
+      </div>`;
+  }
+
+  function startTest(kind) {
+    if (engine.state === 'playing') engine.pause();
+    const test = new MP.hearing.Test(kind === 'full' ? MP.hearing.FULL : MP.hearing.QUICK);
+    S.test = { phase: 'calibrate', test, kind };
+    test.addEventListener('update', () => { render(); presentSoon(); });
+    test.addEventListener('done', () => {
+      S.test.phase = 'done';
+      S.test.defaultName = `プロファイル ${S.profiles.length + 1}`;
+      render();
+    });
+    render();
+  }
+
+  let presentTimer;
+  function presentSoon() {
+    clearTimeout(presentTimer);
+    // 予測で答えないよう、提示のタイミングを少しばらつかせる
+    presentTimer = setTimeout(() => { if (S.test && S.test.phase === 'test') S.test.test.present(); }, 500 + Math.random() * 700);
+  }
+
+  function endTest() {
+    clearTimeout(presentTimer);
+    if (S.test) S.test.test.close();
+    S.test = null;
+    render();
+  }
+
+  function applyProfile(id) {
+    S.activeProfile = id;
+    store.set('activeProfile', id);
+    const p = S.profiles.find((x) => x.id === id) || null;
+    engine.update({ hearingProfile: p, hearingEnabled: !!p && engine.s.hearingEnabled });
+    saveSettings();
+  }
+
+  // ---------- 再生画面 ----------
+  let nowOpen = false;
+  function setPlayIcons() {
+    const playing = engine.state === 'playing' || engine.state === 'loading';
+    for (const el of $$('[data-playicon]')) {
+      el.innerHTML = icon(playing ? 'pause' : 'play');
+      el.setAttribute('aria-label', playing ? '一時停止' : '再生');
+    }
+    $('#now').classList.toggle('paused', !playing);
+  }
+
+  function updateMini() {
+    const t = engine.queue[engine.index];
+    $('#mini').hidden = !t;
+    if (!t) return;
+    $('.mini-art').src = t.artUrl || PLACEHOLDER;
+    $('.mini-title').textContent = t.title;
+    $('.mini-sub').textContent = t.artist;
+  }
+
+  function updateSignal() {
+    const { stages, pure } = engine.signalPath();
+    for (const b of $$('[data-pure-badge]')) {
+      const has = engine.queue[engine.index];
+      b.textContent = has ? (pure ? '素通し' : '加工中') : '';
+      b.className = b.className.replace(/\b(pure|processed)\b/g, '').trim() + ' ' + (pure ? 'pure' : 'processed');
+    }
+    if (!nowOpen) return;
+    $('.stages').innerHTML = stages.map((s) => `<li class="${s.status}"><span class="dot"></span><span class="k">${esc(s.label)}</span><span>${esc(s.value)}</span></li>`).join('');
+  }
+
+  function updateTransitionHint() {
+    const el = $('.transition-hint');
+    const t = engine.transition;
+    const ni = engine.nextIndex();
+    const next = engine.queue[ni];
+    if (!next) { el.textContent = engine.queue.length ? 'これが最後の曲です' : ''; return; }
+    let text = `次：${next.title}`;
+    if (t && t.type === 'crossfade') {
+      text += ` ・ ${t.dur.toFixed(1)} 秒でクロスフェード`;
+      const why = [];
+      if (t.fadeDetected) why.push('フェードアウトを検出');
+      if (t.skipHead > 0.05) why.push(`頭の無音 ${t.skipHead.toFixed(1)} 秒を省略`);
+      if (Math.abs(t.ratioDb) >= 0.5) why.push(`音量差 ${t.ratioDb > 0 ? '+' : ''}${t.ratioDb.toFixed(1)}dB を補正`);
+      if (why.length) text += `（${why.join('・')}）`;
+    } else if (t && t.type === 'gapless') {
+      text += t.reason === 'album' ? ' ・ 同じアルバムなのでギャップレス' : ' ・ ギャップレス';
+    } else if (t && t.type === 'cut') {
+      text += ' ・ 無音を飛ばしてつなぎます';
+    } else {
+      text += ' ・ 準備中…';
+    }
+    el.textContent = text;
+  }
+
+  function updateQueue() {
+    if (!nowOpen) return;
+    const upcoming = engine.queue.slice(engine.index + 1, engine.index + 31);
+    $('.queue').innerHTML = upcoming.map((t, i) => `
+      <li><button class="row thumb" data-queue-jump="${engine.index + 1 + i}">
+        ${t.artUrl ? `<img class="art" src="${esc(t.artUrl)}" alt="">` : '<span class="art art-ph">♪</span>'}
+        <span class="main"><div class="title">${esc(t.title)}</div><div class="sub">${esc(t.artist)}</div></span>
+        <span class="dur">${fmtTime(t.duration)}</span>
+      </button></li>`).join('') || '<li class="muted">ありません</li>';
+  }
+
+  function updateNow() {
+    const t = engine.queue[engine.index];
+    if (nowOpen && t) {
+      $('.now-art').src = t.artUrl || PLACEHOLDER;
+      $('.now-bg img').src = t.artUrl || PLACEHOLDER;
+      $('.now-title').textContent = t.title;
+      $('.now-sub').textContent = `${t.artist} — ${t.album}`;
+    }
+    $('[data-action="shuffle"]').setAttribute('aria-pressed', S.shuffle);
+    $('[data-action="repeat"]').setAttribute('aria-pressed', S.repeat);
+    for (const b of $$('.seg [data-mode]')) b.setAttribute('aria-checked', b.dataset.mode === engine.s.mode);
+    const vol = Math.round(engine.s.volume * 100);
+    $('.volume').value = vol;
+    $('.vol-label').textContent = vol === 100 ? '100%（素通し）' : `${vol}%（デジタル音量）`;
+    setPlayIcons();
+    updateSignal();
+    updateTransitionHint();
+    updateQueue();
+    updateTime();
+  }
+
+  let seeking = false;
+  function updateTime() {
+    const pos = engine.position(), dur = engine.duration();
+    $('.mini-progress span').style.width = dur ? (pos / dur * 100) + '%' : '0';
+    if (!nowOpen) return;
+    if (!seeking) $('.seek').value = dur ? Math.round(pos / dur * 1000) : 0;
+    $('.t-pos').textContent = fmtTime(seeking ? $('.seek').value / 1000 * dur : pos);
+    $('.t-dur').textContent = '-' + fmtTime(dur - pos);
+  }
+
+  function openNow() { nowOpen = true; $('#now').hidden = false; updateNow(); }
+  function closeNow() { nowOpen = false; $('#now').hidden = true; }
+
+  // ---------- Media Session（ロック画面・通知の操作） ----------
+  function updateMediaSession() {
+    if (!('mediaSession' in navigator)) return;
+    const t = engine.queue[engine.index];
+    if (!t) return;
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: t.title, artist: t.artist, album: t.album,
+        artwork: t.artUrl ? [{ src: t.artUrl, sizes: '512x512' }] : [],
+      });
+    } catch (e) { /* 対応していない環境 */ }
+  }
+  if ('mediaSession' in navigator) {
+    const h = {
+      play: () => engine.resume(), pause: () => engine.pause(),
+      nexttrack: () => engine.next(), previoustrack: () => engine.prev(),
+      seekto: (d) => engine.seek(d.seekTime),
+    };
+    for (const [k, fn] of Object.entries(h)) { try { navigator.mediaSession.setActionHandler(k, fn); } catch (e) { /* 無視 */ } }
+  }
+
+  // ---------- エンジンのイベント ----------
+  engine.addEventListener('trackchange', () => {
+    updateMini(); updateNow(); updateMediaSession();
+    for (const row of $$('#view .row')) row.classList.remove('playing');
+    const cur = engine.queue[engine.index];
+    if (cur) {
+      const r = $(`#view [data-play-track="${cur.id}"]`);
+      if (r) r.classList.add('playing');
+      if (S.view === 'album' && S.albumKey === albumKeyOf(cur)) {
+        const a = S.albumMap.get(S.albumKey);
+        const rr = $(`#view [data-play-album-index="${a.tracks.indexOf(cur)}"]`);
+        if (rr) rr.classList.add('playing');
+      }
+    }
+  });
+  engine.addEventListener('state', () => {
+    setPlayIcons();
+    if ('mediaSession' in navigator) navigator.mediaSession.playbackState = engine.state === 'playing' ? 'playing' : 'paused';
+  });
+  engine.addEventListener('transition', () => { updateTransitionHint(); updateQueue(); });
+  engine.addEventListener('signalpath', updateSignal);
+  engine.addEventListener('queue', updateQueue);
+  let lastXf = false;
+  engine.addEventListener('time', () => {
+    updateTime();
+    const xf = engine.inCrossfade();
+    if (xf !== lastXf) { lastXf = xf; updateSignal(); }
+  });
+  engine.addEventListener('error', (e) => toast(e.detail.message, 4000));
+
+  // ---------- 操作 ----------
+  document.addEventListener('click', (e) => {
+    const el = e.target.closest('button, [data-profile]');
+    if (!el) return;
+    const d = el.dataset;
+
+    if (d.nav) return go(d.nav);
+    if (d.album) return go('album', { albumKey: d.album });
+    if (d.playAlbumIndex != null) {
+      const a = S.albumMap.get(S.albumKey);
+      return playList(a.tracks, Number(d.playAlbumIndex));
+    }
+    if (d.playTrack) {
+      const q = S.search.trim().toLowerCase();
+      const list = q ? S.tracks.filter((t) => `${t.title} ${t.artist} ${t.album}`.toLowerCase().includes(q)) : S.tracks;
+      return playList(list, list.findIndex((t) => t.id === d.playTrack));
+    }
+    if (d.queueJump) return engine.play(engine.queue, Number(d.queueJump), 0);
+    if (d.preset) {
+      const p = MP.eq.PRESETS.find((x) => x.id === d.preset);
+      setBands(p.bands(), p.id);
+      return render();
+    }
+    if (d.profile) return;
+    if (d.deleteProfile) {
+      S.profiles = S.profiles.filter((p) => p.id !== d.deleteProfile);
+      store.set('profiles', S.profiles);
+      if (S.activeProfile === d.deleteProfile) {
+        applyProfile(S.profiles[0] ? S.profiles[0].id : null);
+        if (!S.profiles.length) { engine.update({ hearingEnabled: false }); saveSettings(); }
+      }
+      return render();
+    }
+
+    switch (d.action) {
+      case 'pick-dir': return $('#pick-dir').click();
+      case 'pick-files': return $('#pick-files').click();
+      case 'demo': return addDemo();
+      case 'toggle': return engine.toggle();
+      case 'next': return engine.next();
+      case 'prev': return engine.prev();
+      case 'shuffle': return toggleShuffle();
+      case 'repeat': return toggleRepeat();
+      case 'open-now': return openNow();
+      case 'close-now': return closeNow();
+      case 'play-album': case 'shuffle-album': {
+        const a = S.albumMap.get(S.albumKey);
+        if (d.action === 'shuffle-album' && !S.shuffle) S.shuffle = true;
+        if (d.action === 'play-album' && S.shuffle) S.shuffle = false;
+        playList(a.tracks, d.action === 'shuffle-album' ? Math.floor(Math.random() * a.tracks.length) : 0);
+        return;
+      }
+      case 'mode':
+        engine.update({ mode: d.mode });
+        saveSettings();
+        updateNow();
+        if (S.view === 'settings') render();
+        return;
+      case 'import-autoeq': {
+        try {
+          const { bands } = MP.eq.parseAutoEq($('[data-autoeq]').value);
+          setBands(bands, 'autoeq');
+          if (!engine.s.eqEnabled) { engine.update({ eqEnabled: true }); saveSettings(); }
+          toast(`${bands.length} 個のフィルターを読み込みました（プリアンプは自動で計算します）`);
+          render();
+        } catch (err) { toast(err.message, 4000); }
+        return;
+      }
+      case 'start-test': return startTest(d.testKind);
+      case 'ref-tone': return S.test.test.tone(1000, -30, 'both', 1, 1.5, 0);
+      case 'begin-test':
+        S.test.phase = 'test';
+        render();
+        presentSoon();
+        return;
+      case 'replay-tone': return S.test.test.present();
+      case 'answer': {
+        const status = $('[data-test-status]');
+        if (status) status.textContent = '…';
+        S.test.test.answer(d.heard === '1');
+        return;
+      }
+      case 'cancel-test': return endTest();
+      case 'save-profile': {
+        const name = ($('[data-profile-name]').value || S.test.defaultName).trim();
+        const p = MP.hearing.makeProfile(name, S.test.test.results);
+        S.profiles.push(p);
+        store.set('profiles', S.profiles);
+        S.test.test.close();
+        S.test = null;
+        engine.update({ hearingEnabled: true });
+        applyProfile(p.id);
+        toast('プロファイルを保存し、聴力補正をオンにしました');
+        return render();
+      }
+    }
+  });
+
+  document.addEventListener('input', (e) => {
+    const el = e.target;
+    const d = el.dataset;
+    if ('search' in d) {
+      S.search = el.value;
+      $('[data-songlist]').innerHTML = songRows();
+      return;
+    }
+    if ('bandGain' in d) {
+      const i = Number(el.closest('[data-band]').dataset.band);
+      const b = engine.s.eqBands[i];
+      b.gain = Number(el.value);
+      el.closest('[data-band]').querySelector('[data-band-val]').textContent = `${b.gain > 0 ? '+' : ''}${b.gain.toFixed(1)}dB`;
+      if (S.eqPreset !== 'custom') { S.eqPreset = 'custom'; store.set('eqPreset', 'custom'); for (const c of $$('[data-preset]')) c.setAttribute('aria-pressed', 'false'); }
+      engine.update({ eqBands: engine.s.eqBands });
+      drawEq();
+      return;
+    }
+    if (el.classList.contains('volume')) {
+      engine.update({ volume: Number(el.value) / 100 });
+      const vol = Number(el.value);
+      $('.vol-label').textContent = vol === 100 ? '100%（素通し）' : `${vol}%（デジタル音量）`;
+      return;
+    }
+    if (el.classList.contains('seek')) { seeking = true; updateTime(); return; }
+    if ('xf' in d) {
+      $('[data-xf-out]').textContent = `${el.value} 秒`;
+      return;
+    }
+    if ('hStrength' in d || 'hMax' in d) {
+      const p = S.profiles.find((x) => x.id === S.activeProfile);
+      const strength = Number($('[data-h-strength]').value) / 100;
+      const maxBoost = Number($('[data-h-max]').value);
+      $('[data-strength-out]').textContent = `${Math.round(strength * 100)}%`;
+      $('[data-max-out]').textContent = `${maxBoost}dB`;
+      const np = MP.hearing.retune(p, strength, maxBoost);
+      S.profiles[S.profiles.indexOf(p)] = np;
+      drawHearing();
+    }
+  });
+
+  document.addEventListener('change', (e) => {
+    const el = e.target;
+    const d = el.dataset;
+    if (el.id === 'pick-dir' || el.id === 'pick-files') {
+      if (el.files.length) importFiles(el.files);
+      el.value = '';
+      return;
+    }
+    if (el.classList.contains('seek')) {
+      seeking = false;
+      engine.seek(Number(el.value) / 1000 * engine.duration());
+      return;
+    }
+    if ('eqToggle' in d) { engine.update({ eqEnabled: el.checked }); saveSettings(); return; }
+    if ('hearingToggle' in d) { engine.update({ hearingEnabled: el.checked }); saveSettings(); return; }
+    if ('setting' in d) { engine.update({ [d.setting]: el.checked }); saveSettings(); return; }
+    if ('xf' in d) { engine.update({ crossfadeSec: Number(el.value) }); saveSettings(); return; }
+    if ('profile' in d) { applyProfile(d.profile); render(); return; }
+    if ('hStrength' in d || 'hMax' in d) {
+      store.set('profiles', S.profiles);
+      applyProfile(S.activeProfile);
+      return;
+    }
+    const band = el.closest('[data-band]');
+    if (band && ('bandType' in d || 'bandFreq' in d || 'bandQ' in d)) {
+      const b = engine.s.eqBands[Number(band.dataset.band)];
+      if ('bandType' in d) b.type = el.value;
+      if ('bandFreq' in d) b.freq = Math.min(20000, Math.max(20, Number(el.value) || b.freq));
+      if ('bandQ' in d) b.q = Math.min(10, Math.max(0.1, Number(el.value) || b.q));
+      band.querySelector('.freq').textContent = fmtHz(b.freq);
+      S.eqPreset = 'custom';
+      store.set('eqPreset', 'custom');
+      engine.update({ eqBands: engine.s.eqBands });
+      saveSettings();
+      drawEq();
+    }
+  });
+
+  // EQ スライダーを離したら保存
+  document.addEventListener('pointerup', (e) => { if (e.target.matches('[data-band-gain]')) saveSettings(); });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.target.matches('input, textarea, select')) return;
+    if (e.code === 'Space') { e.preventDefault(); engine.toggle(); }
+    else if (e.key === 'Escape' && nowOpen) closeNow();
+  });
+
+  window.addEventListener('resize', () => { if (S.view === 'eq') drawEq(); if (S.view === 'hearing' && !S.test) drawHearing(); });
+
+  // 初期化
+  for (const el of $$('[data-icon]')) el.innerHTML = icon(el.dataset.icon);
+  setPlayIcons();
+  render();
+
+  MP.app = { engine, S, addDemo, playList };
+})(window.MP = window.MP || {});
