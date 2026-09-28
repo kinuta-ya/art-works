@@ -102,6 +102,20 @@
     return peak > 0.05 ? -(Math.ceil(peak * 10) / 10 + 0.3) : 0;
   }
 
+  // グラフの座標（描画とドラッグ操作で共通）
+  function layout(w, h, range = 15) {
+    const pad = { l: 30, r: 8, t: 8, b: 18 };
+    const pw = w - pad.l - pad.r, ph = h - pad.t - pad.b;
+    const L0 = Math.log10(20), L1 = Math.log10(20000);
+    return {
+      pad, pw, ph, range,
+      xOf: (f) => pad.l + pw * (Math.log10(f) - L0) / (L1 - L0),
+      yOf: (db) => pad.t + ph * (1 - (db + range) / (2 * range)),
+      fOfX: (x) => 10 ** (L0 + (L1 - L0) * (x - pad.l) / pw),
+      dbOfY: (y) => (1 - (y - pad.t) / ph) * 2 * range - range,
+    };
+  }
+
   // 周波数特性グラフの描画
   function draw(canvas, curves, opts = {}) {
     const dpr = window.devicePixelRatio || 1;
@@ -114,10 +128,7 @@
     const grid = css.getPropertyValue('--grid').trim() || '#333';
     const muted = css.getPropertyValue('--muted').trim() || '#888';
     const range = opts.range || 15;
-    const pad = { l: 30, r: 8, t: 8, b: 18 };
-    const pw = w - pad.l - pad.r, ph = h - pad.t - pad.b;
-    const xOf = (f) => pad.l + pw * (Math.log10(f) - Math.log10(20)) / (Math.log10(20000) - Math.log10(20));
-    const yOf = (db) => pad.t + ph * (1 - (db + range) / (2 * range));
+    const { pad, xOf, yOf } = layout(w, h, range);
 
     g.clearRect(0, 0, w, h);
     g.font = '10px system-ui, sans-serif';
@@ -154,11 +165,27 @@
     g.setLineDash([]);
     if (opts.points) {
       for (const p of opts.points) {
+        const x = xOf(p.freq), y = yOf(Math.max(-range, Math.min(range, p.gain)));
+        if (p.ring) { // 操作できる点の輪
+          g.strokeStyle = p.color; g.lineWidth = 1.5; g.globalAlpha = 0.35;
+          g.beginPath(); g.arc(x, y, (p.r || 3.5) + 5, 0, Math.PI * 2); g.stroke();
+          g.globalAlpha = 1;
+        }
         g.fillStyle = p.color;
-        g.beginPath(); g.arc(xOf(p.freq), yOf(Math.max(-range, Math.min(range, p.gain))), p.r || 3.5, 0, Math.PI * 2); g.fill();
+        g.beginPath(); g.arc(x, y, p.r || 3.5, 0, Math.PI * 2); g.fill();
+        if (p.label) { // ドラッグ中の値
+          g.font = '600 11px system-ui, sans-serif';
+          const tw = g.measureText(p.label).width + 12;
+          const lx = Math.min(w - pad.r - tw, Math.max(pad.l, x - tw / 2));
+          const ly = y - 30 < pad.t ? y + 14 : y - 30;
+          g.fillStyle = p.color; g.globalAlpha = 0.95;
+          g.beginPath(); g.roundRect(lx, ly, tw, 18, 9); g.fill();
+          g.globalAlpha = 1; g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+          g.fillText(p.label, lx + tw / 2, ly + 9);
+        }
       }
     }
   }
 
-  MP.eq = { TYPES, PRESETS, flatBands, parseAutoEq, logFreqs, responseDb, autoPreamp, draw };
+  MP.eq = { TYPES, PRESETS, flatBands, parseAutoEq, logFreqs, responseDb, autoPreamp, draw, layout };
 })(window.MP = window.MP || {});

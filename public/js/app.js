@@ -1130,7 +1130,8 @@
         ${toolHead('PARAMETRIC EQ / 32-BIT FLOAT', 'EQ')}
         ${bypassCard('eq', 'EQ')}
         <div class="card">
-          <canvas class="eq-graph" data-eq-graph></canvas>
+          <canvas class="eq-graph" data-eq-graph aria-label="EQ の特性。点をドラッグして調整できます"></canvas>
+          <p class="note eq-hint">点をドラッグ：左右で周波数、上下でゲイン ・ ダブルタップで 0dB ・ パソコンではホイールで Q（効く幅）</p>
           <div class="legend">
             <span><i style="background:var(--accent)"></i>合成特性</span>
             <span data-preamp></span>
@@ -1248,13 +1249,113 @@
   function drawEqOn(c) {
     const data = MP.eq.responseDb(engine.s.eqBands, graphFreqs);
     const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+    const active = eqDrag && eqDrag.canvas === c ? eqDrag.i : -1;
     MP.eq.draw(c, [{ data, color: accent, width: 2.5 }], {
       freqs: graphFreqs,
-      points: engine.s.eqBands.filter((b) => b.enabled).map((b) => ({ freq: b.freq, gain: b.gain, color: accent })),
+      points: engine.s.eqBands.map((b, i) => ({ b, i })).filter(({ b }) => b.enabled).map(({ b, i }) => ({
+        freq: b.freq, gain: b.gain, color: accent, ring: true,
+        r: i === active ? 7 : 4.5,
+        label: i === active ? `${fmtHz(b.freq)} ${b.gain > 0 ? '+' : ''}${b.gain.toFixed(1)}dB Q${b.q.toFixed(2)}` : null,
+      })),
     });
     const pre = MP.eq.autoPreamp([data]);
     for (const el of $$('[data-preamp]')) el.textContent = pre < 0 ? `自動プリアンプ ${pre.toFixed(1)}dB` : 'プリアンプ 0dB';
   }
+
+  // EQ のグラフの点をドラッグ：左右で周波数、上下でゲイン。ダブルタップで 0dB。ホイールで Q
+  let eqDrag = null;
+  let eqLastTap = null;
+  const EQ_GRAPHS = '[data-eq-graph], [data-np-eq-graph]';
+  function eqHit(c, ev) {
+    const r = c.getBoundingClientRect();
+    const x = ev.clientX - r.left, y = ev.clientY - r.top;
+    const L = MP.eq.layout(r.width, r.height);
+    let best = -1, bestD = 28; // 指で押しやすいよう、28px 以内の一番近い点
+    engine.s.eqBands.forEach((b, i) => {
+      if (!b.enabled) return;
+      const d = Math.hypot(L.xOf(b.freq) - x, L.yOf(Math.max(-15, Math.min(15, b.gain))) - y);
+      if (d < bestD) { bestD = d; best = i; }
+    });
+    return { i: best, x, y, L };
+  }
+  // バンドの一覧（ツール画面）の表示も合わせる
+  function syncBandRow(i) {
+    const row = $(`[data-band="${i}"]`);
+    if (!row) return;
+    const b = engine.s.eqBands[i];
+    row.querySelector('[data-band-gain]').value = b.gain;
+    row.querySelector('[data-band-val]').textContent = `${b.gain > 0 ? '+' : ''}${b.gain.toFixed(1)}dB`;
+    row.querySelector('.freq').textContent = fmtHz(b.freq);
+    row.querySelector('[data-band-freq]').value = Math.round(b.freq);
+    row.querySelector('[data-band-q]').value = b.q;
+  }
+  function eqChanged(i) {
+    if (S.eqPreset !== 'custom') {
+      S.eqPreset = 'custom';
+      store.set('eqPreset', 'custom');
+      for (const c of $$('[data-preset]')) c.setAttribute('aria-pressed', 'false');
+    }
+    engine.update({ eqBands: engine.s.eqBands });
+    syncBandRow(i);
+    drawEq();
+  }
+  document.addEventListener('pointerdown', (ev) => {
+    const c = ev.target.closest && ev.target.closest(EQ_GRAPHS);
+    if (!c) return;
+    const h = eqHit(c, ev);
+    if (h.i < 0) return;
+    ev.preventDefault();
+    // ダブルタップ（ダブルクリック）で 0dB に戻す
+    const now = performance.now();
+    if (eqLastTap && eqLastTap.i === h.i && now - eqLastTap.t < 350) {
+      eqLastTap = null;
+      engine.s.eqBands[h.i].gain = 0;
+      eqChanged(h.i);
+      saveSettings();
+      toast(`${fmtHz(engine.s.eqBands[h.i].freq)} を 0dB に戻しました`);
+      return;
+    }
+    eqLastTap = { i: h.i, t: now };
+    c.setPointerCapture(ev.pointerId);
+    const b = engine.s.eqBands[h.i];
+    eqDrag = { canvas: c, i: h.i, id: ev.pointerId, dx: h.L.xOf(b.freq) - h.x, dy: h.L.yOf(b.gain) - h.y };
+    drawEq();
+  });
+  document.addEventListener('pointermove', (ev) => {
+    if (!eqDrag || ev.pointerId !== eqDrag.id) return;
+    const c = eqDrag.canvas;
+    const r = c.getBoundingClientRect();
+    const L = MP.eq.layout(r.width, r.height);
+    const b = engine.s.eqBands[eqDrag.i];
+    const f = L.fOfX(ev.clientX - r.left + eqDrag.dx);
+    const db = L.dbOfY(ev.clientY - r.top + eqDrag.dy);
+    b.freq = Math.round(Math.min(20000, Math.max(20, f)));
+    b.gain = Math.round(Math.min(12, Math.max(-12, db)) * 2) / 2; // 0.5dB 刻み
+    eqChanged(eqDrag.i);
+  });
+  const endEqDrag = (ev) => {
+    if (!eqDrag || ev.pointerId !== eqDrag.id) return;
+    eqDrag = null;
+    saveSettings();
+    drawEq();
+  };
+  document.addEventListener('pointerup', endEqDrag);
+  document.addEventListener('pointercancel', endEqDrag);
+  document.addEventListener('wheel', (ev) => {
+    const c = ev.target.closest && ev.target.closest(EQ_GRAPHS);
+    if (!c) return;
+    const h = eqHit(c, ev);
+    if (h.i < 0) return;
+    ev.preventDefault();
+    const b = engine.s.eqBands[h.i];
+    b.q = Math.round(Math.min(10, Math.max(0.1, b.q * (ev.deltaY < 0 ? 1.1 : 1 / 1.1))) * 100) / 100;
+    eqDrag = { canvas: c, i: h.i, id: -1 };
+    eqChanged(h.i);
+    eqDrag = null;
+    clearTimeout(eqWheelSave);
+    eqWheelSave = setTimeout(() => { saveSettings(); drawEq(); }, 600);
+  }, { passive: false });
+  let eqWheelSave = null;
 
   function setBands(bands, presetId) {
     S.eqPreset = presetId;
@@ -1473,7 +1574,8 @@
       </div>`,
     eq: () => `
       ${panelHead('eq', true)}
-      <canvas class="eq-graph" data-np-eq-graph aria-label="EQ の特性"></canvas>
+      <canvas class="eq-graph" data-np-eq-graph aria-label="EQ の特性。点をドラッグして調整できます"></canvas>
+      <p class="note eq-hint" style="margin:0">点をドラッグして調整 ・ ダブルタップで 0dB</p>
       <div class="legend"><span data-preamp></span></div>
       <div class="chips">${MP.eq.PRESETS.map((p) => `<button class="chip press" data-preset="${p.id}" aria-pressed="${S.eqPreset === p.id}">${esc(p.name)}</button>`).join('')}</div>
       ${moreBtn('eq')}`,

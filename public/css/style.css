@@ -630,6 +630,9 @@ input[type="range"] { width: 100%; accent-color: var(--c-main); }
 
 /* ---------- EQ ---------- */
 .eq-graph { width: 100%; height: 210px; display: block; }
+[data-eq-graph], [data-np-eq-graph] { touch-action: none; cursor: grab; }
+[data-eq-graph]:active, [data-np-eq-graph]:active { cursor: grabbing; }
+.eq-hint { font-size: 12px; }
 .bands { display: grid; }
 .band {
   display: grid; gap: 6px 10px; align-items: center;
