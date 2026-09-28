@@ -1,0 +1,260 @@
+/* テーマ（スキン）
+   <html data-skin="…"> で切り替える。ミッドセンチュリーは style.css の既定値で、OS のライト/ダークに追従する。
+   ほかのテーマは、それぞれの世界観に合わせた 1 つの配色で固定。
+   トークンの役割: --c-main 主色 / --c-sub 副色 / --c-hi 強調色 / --c-third 第 4 色 / --c-side サイドバー */
+
+/* ========== バウハウス：赤・青・黄と黒、円・四角・三角 ========== */
+:root[data-skin="bauhaus"] {
+  --bg: #efe9dc; --bg-2: #e4dccb; --surface: #faf7f0; --surface-2: #ebe4d4;
+  --ink: #141414; --muted: #555049; --line: #141414; --grid: rgba(20, 20, 20, .16);
+  --c-main: #d42a1c; --c-sub: #1d4aa6; --c-hi: #f1c21b; --c-third: #141414; --c-side: #141414;
+  --accent: var(--c-main); --accent-ink: #faf7f0;
+  --ok: #1d4aa6; --warn: #d42a1c; --info: #1d4aa6; --danger: #d42a1c;
+  --on-color: #faf7f0; --on-hi: #141414; --on-side: #efe9dc;
+  --plinth: #1d4aa6; --shadow-rgb: 20 20 20;
+  --radius: 0; --r-pill: 0; --arch: 999px 999px 0 0; --cover-r: 0;
+  --card-border: 2px solid #141414; --card-shadow: none;
+  --btn-border: 2px solid #141414; --btn-bg: transparent;
+  --f-display: "Jost", "Zen Kaku Gothic New", system-ui, sans-serif;
+  --grain: none;
+  --star-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M50 6 L96 92 L4 92Z'/%3E%3C/svg%3E");
+  color-scheme: light;
+}
+[data-skin="bauhaus"] h1 { font-weight: 700; text-transform: uppercase; letter-spacing: .02em; }
+[data-skin="bauhaus"] .now-bg .sun { border-radius: 0; opacity: .9; background: var(--c-hi); transform: rotate(12deg); }
+[data-skin="bauhaus"] .now-bg .floor { opacity: .9; background: var(--c-main); }
+
+/* ========== スイス・スタイル：白・黒・赤、厳格なグリッドと大きな文字 ========== */
+:root[data-skin="swiss"] {
+  --bg: #ffffff; --bg-2: #f3f3f3; --surface: #ffffff; --surface-2: #f1f1f1;
+  --ink: #000000; --muted: #5f5f5f; --line: #000000; --grid: rgba(0, 0, 0, .12);
+  --c-main: #e30613; --c-sub: #000000; --c-hi: #e30613; --c-third: #5f5f5f; --c-side: #ffffff;
+  --accent: var(--c-main); --accent-ink: #ffffff;
+  --ok: #000000; --warn: #e30613; --info: #000000; --danger: #e30613;
+  --on-color: #ffffff; --on-hi: #ffffff; --on-side: #000000;
+  --plinth: #111111; --shadow-rgb: 0 0 0;
+  --radius: 0; --r-pill: 0; --arch: 0; --cover-r: 0;
+  --card-border: 0; --card-shadow: inset 0 3px 0 #000;
+  --btn-border: 2px solid #000; --btn-bg: transparent;
+  --f-display: "Archivo", "Zen Kaku Gothic New", system-ui, sans-serif;
+  --f-body: "Archivo", "Zen Kaku Gothic New", system-ui, sans-serif;
+  --grain: none;
+  --star-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='10' y='10' width='80' height='80'/%3E%3C/svg%3E");
+  color-scheme: light;
+}
+[data-skin="swiss"] h1 { font-size: 52px; font-weight: 800; letter-spacing: -.04em; line-height: .95; }
+[data-skin="swiss"] .sidebar { border-right: 3px solid #000; }
+[data-skin="swiss"] .card { padding-top: 20px; }
+[data-skin="swiss"] .now-bg { display: none; }
+[data-skin="swiss"] .genre-card { --tone: #000; color: #fff; }
+[data-skin="swiss"] .genre-card:nth-child(2n) { --tone: var(--c-main); color: #fff; }
+
+/* ========== アール・デコ：黒と金、左右対称の細い線 ========== */
+:root[data-skin="artdeco"] {
+  --bg: #0e0e10; --bg-2: #09090a; --surface: #161618; --surface-2: #202023;
+  --ink: #f0e6cc; --muted: #b3a27a; --line: #c9a24a; --grid: rgba(201, 162, 74, .2);
+  --c-main: #c9a24a; --c-sub: #1d4d48; --c-hi: #e8c878; --c-third: #7a2b26; --c-side: #09090a;
+  --accent: var(--c-main); --accent-ink: #0e0e10;
+  --ok: #e8c878; --warn: #c9a24a; --info: #e8c878; --danger: #c9a24a;
+  --on-color: #f0e6cc; --on-hi: #0e0e10; --on-side: #f0e6cc;
+  --plinth: linear-gradient(180deg, #1b1b1e, #0b0b0c); --shadow-rgb: 0 0 0;
+  --radius: 2px; --r-pill: 2px; --arch: 999px 999px 0 0; --cover-r: 0;
+  --card-border: 1px solid #c9a24a; --card-shadow: inset 0 0 0 4px #161618, inset 0 0 0 5px rgba(201, 162, 74, .5);
+  --btn-border: 1px solid #c9a24a; --btn-bg: transparent;
+  --f-display: "Poiret One", "Shippori Mincho", serif;
+  --f-body: "Shippori Mincho", "Hiragino Mincho ProN", serif;
+  --grain: none;
+  --star-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M50 2 L98 50 L50 98 L2 50Z'/%3E%3C/svg%3E");
+  color-scheme: dark;
+}
+[data-skin="artdeco"] h1, [data-skin="artdeco"] h2, [data-skin="artdeco"] .now-title { text-transform: uppercase; letter-spacing: .14em; font-weight: 400; }
+[data-skin="artdeco"] .page-head { text-align: center; justify-items: center; }
+[data-skin="artdeco"] .page-head .row-top { justify-content: center; }
+[data-skin="artdeco"] .now-disc-wrap { border: 1px solid #c9a24a; }
+[data-skin="artdeco"] .now-bg .sun {
+  /* 扇形の光線 */
+  border-radius: 0; opacity: .25; left: 50%; right: auto; top: 0; width: 600px; height: 320px; transform: translateX(-50%);
+  background: repeating-conic-gradient(from 270deg at 50% 100%, #c9a24a 0 2deg, transparent 2deg 9deg);
+  -webkit-mask: linear-gradient(to top, #000, transparent); mask: linear-gradient(to top, #000, transparent);
+}
+[data-skin="artdeco"] .now-bg .floor { display: none; }
+[data-skin="artdeco"] .genre-card { --tone: #161618; color: var(--ink); border: 1px solid #c9a24a; }
+[data-skin="artdeco"] .genre-card:nth-child(4n+2) { --tone: #1d4d48; }
+[data-skin="artdeco"] .genre-card:nth-child(4n+3) { --tone: #161618; color: var(--ink); }
+[data-skin="artdeco"] .genre-card:nth-child(4n+4) { --tone: #3d1715; }
+
+/* ========== メンフィス：パステルと原色、太い黒線、紙吹雪の柄 ========== */
+:root[data-skin="memphis"] {
+  --bg: #fff6e3; --bg-2: #ffeccb; --surface: #ffffff; --surface-2: #fff2d6;
+  --ink: #161616; --muted: #5c5346; --line: #161616; --grid: rgba(22, 22, 22, .14);
+  --c-main: #ff5a9e; --c-sub: #25c2b4; --c-hi: #ffd23f; --c-third: #6b4cff; --c-side: #6b4cff;
+  --accent: var(--c-main); --accent-ink: #161616;
+  --ok: #25c2b4; --warn: #ff5a9e; --info: #6b4cff; --danger: #ff5a9e;
+  --on-color: #161616; --on-hi: #161616; --on-side: #ffffff;
+  --plinth: #25c2b4; --shadow-rgb: 22 22 22;
+  --radius: 14px; --r-pill: 999px; --arch: 999px 999px 14px 14px; --cover-r: 10px;
+  --card-border: 2.5px solid #161616; --card-shadow: 6px 6px 0 #161616;
+  --btn-border: 2.5px solid #161616; --btn-bg: #ffffff;
+  --f-display: "Bungee", "Zen Kaku Gothic New", system-ui, sans-serif;
+  --grain:
+    radial-gradient(circle at 20px 20px, rgba(107, 76, 255, .35) 0 3px, transparent 3.5px) 0 0 / 140px 140px,
+    radial-gradient(circle at 90px 100px, rgba(255, 90, 158, .35) 0 4px, transparent 4.5px) 0 0 / 170px 170px,
+    linear-gradient(135deg, transparent 0 48%, rgba(37, 194, 180, .28) 48% 52%, transparent 52%) 60px 30px / 150px 150px;
+  --star-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M4 60 Q 16 20 28 60 T 52 60 T 76 60 T 100 60' fill='none' stroke='%23000' stroke-width='16' stroke-linecap='round'/%3E%3C/svg%3E");
+  color-scheme: light;
+}
+[data-skin="memphis"] .genre-card, [data-skin="memphis"] .album-card .cover, [data-skin="memphis"] .now-disc-wrap, [data-skin="memphis"] .tracks, [data-skin="memphis"] .controls .huge {
+  border: 2.5px solid #161616; box-shadow: 5px 5px 0 #161616;
+}
+[data-skin="memphis"] .genre-card:nth-child(4n+4) { color: #fff; }
+[data-skin="memphis"] .now-bg .sun { opacity: .6; }
+[data-skin="memphis"] .now-bg .floor { opacity: .35; background: repeating-linear-gradient(45deg, var(--c-third) 0 10px, transparent 10px 20px); }
+
+/* ========== Y2K：クロームの銀、氷のような青、光沢のあるピル ========== */
+:root[data-skin="y2k"] {
+  --bg: #e7ecf4; --bg-2: #dbe2ee; --surface: #f7f9fc; --surface-2: #e3e9f2;
+  --ink: #0b1b3f; --muted: #56688c; --line: #b6c3d8; --grid: rgba(11, 27, 63, .12);
+  --c-main: #2b6cff; --c-sub: #9a6bff; --c-hi: #74f0ff; --c-third: #ff78d6; --c-side: linear-gradient(180deg, #0b1b3f, #243f7a);
+  --accent: var(--c-main); --accent-ink: #ffffff;
+  --ok: #2b6cff; --warn: #ff78d6; --info: #2b6cff; --danger: #ff78d6;
+  --on-color: #ffffff; --on-hi: #0b1b3f; --on-side: #e7ecf4;
+  --plinth: linear-gradient(135deg, #fbfdff, #b6c3d8 45%, #eef2f8 55%, #9aa9c2); --shadow-rgb: 11 27 63;
+  --radius: 24px; --r-pill: 999px; --arch: 999px; --cover-r: 18px;
+  --card-border: 1px solid #ffffff; --card-shadow: inset 0 1px 0 #fff, 0 12px 26px -16px rgba(11, 27, 63, .45);
+  --btn-border: 1px solid #b6c3d8; --btn-bg: linear-gradient(180deg, #ffffff, #d6deea);
+  --f-display: "Orbitron", "Zen Kaku Gothic New", system-ui, sans-serif;
+  --f-mono: "Share Tech Mono", ui-monospace, monospace;
+  --grain: radial-gradient(1200px 500px at 100% 0, rgba(116, 240, 255, .35), transparent 60%), radial-gradient(900px 600px at 0 100%, rgba(255, 120, 214, .22), transparent 60%);
+  --star-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M50 0 C54 36 64 46 100 50 C64 54 54 64 50 100 C46 64 36 54 0 50 C36 46 46 36 50 0Z'/%3E%3C/svg%3E");
+  color-scheme: light;
+}
+[data-skin="y2k"] .btn.primary, [data-skin="y2k"] .controls .huge { background: linear-gradient(180deg, #7fa6ff, #2b6cff 55%, #1f55d6); border-color: #1f55d6; }
+[data-skin="y2k"] h1 { font-weight: 700; letter-spacing: .04em; }
+[data-skin="y2k"] .now-bg .sun { background: conic-gradient(from 90deg, #74f0ff, #9a6bff, #ff78d6, #74f0ff); opacity: .45; }
+[data-skin="y2k"] .now-bg .floor { background: linear-gradient(180deg, #ffffff, #b6c3d8); opacity: .6; }
+
+/* ========== ミニマリズム：白・グレー・余白だけ ========== */
+:root[data-skin="minimal"] {
+  --bg: #fafafa; --bg-2: #f4f4f4; --surface: #ffffff; --surface-2: #f3f3f3;
+  --ink: #171717; --muted: #737373; --line: #e5e5e5; --grid: rgba(0, 0, 0, .06);
+  --c-main: #171717; --c-sub: #737373; --c-hi: #171717; --c-third: #a3a3a3; --c-side: #fafafa;
+  --accent: var(--c-main); --accent-ink: #ffffff;
+  --ok: #171717; --warn: #737373; --info: #171717; --danger: #737373;
+  --on-color: #ffffff; --on-hi: #ffffff; --on-side: #171717;
+  --plinth: #f1f1f1; --shadow-rgb: 0 0 0;
+  --radius: 8px; --r-pill: 8px; --arch: 8px; --cover-r: 4px;
+  --card-border: 1px solid #e5e5e5; --card-shadow: none;
+  --btn-border: 1px solid #d4d4d4; --btn-bg: #ffffff;
+  --f-display: "Noto Sans JP", system-ui, sans-serif;
+  --f-body: "Noto Sans JP", system-ui, sans-serif;
+  --f-mono: "Noto Sans Mono", ui-monospace, monospace;
+  --grain: none;
+  --star-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='22'/%3E%3C/svg%3E");
+  color-scheme: light;
+}
+[data-skin="minimal"] h1 { font-weight: 300; letter-spacing: .02em; }
+[data-skin="minimal"] h2::before { display: none; }
+[data-skin="minimal"] .sidebar { border-right: 1px solid #e5e5e5; }
+[data-skin="minimal"] .now-bg { display: none; }
+[data-skin="minimal"] .genre-card { --tone: #ffffff; color: #171717; border: 1px solid #e5e5e5; }
+[data-skin="minimal"] .genre-card:nth-child(n) { --tone: #ffffff; color: #171717; }
+[data-skin="minimal"] .now-disc-wrap { box-shadow: none; }
+
+/* ========== グラスモーフィズム：色の光の上にすりガラス ========== */
+:root[data-skin="glass"] {
+  --bg: #241a4d; --bg-2: rgba(255, 255, 255, .06); --surface: rgba(255, 255, 255, .12); --surface-2: rgba(255, 255, 255, .2);
+  --ink: #ffffff; --muted: rgba(255, 255, 255, .72); --line: rgba(255, 255, 255, .28); --grid: rgba(255, 255, 255, .14);
+  --c-main: #ff7eb6; --c-sub: #6fd8ff; --c-hi: #ffe07a; --c-third: #b18cff; --c-side: rgba(255, 255, 255, .08);
+  --accent: var(--c-main); --accent-ink: #1b1440;
+  --ok: #7dffc8; --warn: #ffe07a; --info: #6fd8ff; --danger: #ff7eb6;
+  --on-color: #1b1440; --on-hi: #1b1440; --on-side: #ffffff;
+  --plinth: rgba(255, 255, 255, .14); --shadow-rgb: 10 5 40;
+  --radius: 22px; --r-pill: 999px; --arch: 999px 999px 16px 16px; --cover-r: 14px;
+  --card-border: 1px solid rgba(255, 255, 255, .28); --card-shadow: 0 10px 30px -12px rgba(10, 5, 40, .5);
+  --btn-border: 1px solid rgba(255, 255, 255, .35); --btn-bg: rgba(255, 255, 255, .12);
+  --f-display: "Jost", "Zen Kaku Gothic New", system-ui, sans-serif;
+  --grain:
+    radial-gradient(600px 500px at 15% 10%, #ff7eb6 0, transparent 60%),
+    radial-gradient(700px 600px at 90% 30%, #6fd8ff 0, transparent 60%),
+    radial-gradient(700px 600px at 40% 100%, #b18cff 0, transparent 60%);
+  --star-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='36'/%3E%3C/svg%3E");
+  color-scheme: dark;
+}
+[data-skin="glass"] body, [data-skin="glass"] .now { background-attachment: fixed; }
+[data-skin="glass"] .card, [data-skin="glass"] .tracks, [data-skin="glass"] .mini, [data-skin="glass"] .tabbar,
+[data-skin="glass"] .sidebar, [data-skin="glass"] .genre-card, [data-skin="glass"] .now-disc-wrap, [data-skin="glass"] .seg {
+  -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4);
+}
+[data-skin="glass"] .genre-card { --tone: rgba(255, 255, 255, .14); color: #fff; border: 1px solid rgba(255, 255, 255, .28); }
+[data-skin="glass"] .genre-card:nth-child(n) { --tone: rgba(255, 255, 255, .14); color: #fff; }
+[data-skin="glass"] .now-bg { display: none; }
+[data-skin="glass"] .now-disc-wrap { border: 1px solid rgba(255, 255, 255, .3); }
+
+/* ========== ニューモーフィズム：同色の面を光と影で押し出す ========== */
+:root[data-skin="neumorph"] {
+  --bg: #e4e8ef; --bg-2: #e4e8ef; --surface: #e4e8ef; --surface-2: #dde2ea;
+  --ink: #3a4254; --muted: #7a8396; --line: #cfd5df; --grid: rgba(58, 66, 84, .1);
+  --c-main: #5c6cf2; --c-sub: #38b3a6; --c-hi: #f2a65a; --c-third: #9aa3b6; --c-side: #e4e8ef;
+  --accent: var(--c-main); --accent-ink: #ffffff;
+  --ok: #38b3a6; --warn: #f2a65a; --info: #5c6cf2; --danger: #f2a65a;
+  --on-color: #ffffff; --on-hi: #3a4254; --on-side: #3a4254;
+  --plinth: #e4e8ef; --shadow-rgb: 163 172 190;
+  --radius: 22px; --r-pill: 999px; --arch: 999px 999px 18px 18px; --cover-r: 16px;
+  --card-border: 0; --card-shadow: 8px 8px 16px #c3c9d4, -8px -8px 16px #ffffff;
+  --btn-border: 0; --btn-bg: #e4e8ef;
+  --f-display: "M PLUS Rounded 1c", system-ui, sans-serif;
+  --f-body: "M PLUS Rounded 1c", system-ui, sans-serif;
+  --grain: none;
+  --star-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='34'/%3E%3C/svg%3E");
+  color-scheme: light;
+}
+[data-skin="neumorph"] .btn, [data-skin="neumorph"] .chip, [data-skin="neumorph"] .seg, [data-skin="neumorph"] .search,
+[data-skin="neumorph"] .tracks, [data-skin="neumorph"] .now-disc-wrap, [data-skin="neumorph"] .controls .huge, [data-skin="neumorph"] .mode-card {
+  border: 0; box-shadow: 6px 6px 12px #c3c9d4, -6px -6px 12px #ffffff;
+}
+[data-skin="neumorph"] .btn:active, [data-skin="neumorph"] .chip[aria-pressed="true"], [data-skin="neumorph"] .mode-card[aria-checked="true"] {
+  box-shadow: inset 4px 4px 8px #c3c9d4, inset -4px -4px 8px #ffffff;
+}
+[data-skin="neumorph"] .chip[aria-pressed="true"], [data-skin="neumorph"] .mode-card[aria-checked="true"] { background: #e4e8ef; color: var(--c-main); }
+[data-skin="neumorph"] .genre-card { --tone: #e4e8ef; color: var(--ink); box-shadow: 8px 8px 16px #c3c9d4, -8px -8px 16px #ffffff; }
+[data-skin="neumorph"] .genre-card:nth-child(n) { --tone: #e4e8ef; color: var(--ink); }
+[data-skin="neumorph"] .now-bg, [data-skin="neumorph"] .sidebar { background: #e4e8ef; }
+[data-skin="neumorph"] .now-bg { display: none; }
+[data-skin="neumorph"] .tabbar, [data-skin="neumorph"] .mini { border: 0; background: #e4e8ef; }
+
+/* ========== ヴェイパーウェイブ：夕焼けの太陽、ピンクとシアン、グリッド ========== */
+:root[data-skin="vaporwave"] {
+  --bg: #1a0e36; --bg-2: #140a2b; --surface: #241448; --surface-2: #2f1b5c;
+  --ink: #fdf6ff; --muted: #b9a6e6; --line: #5a3f98; --grid: rgba(41, 230, 255, .14);
+  --c-main: #ff5ec8; --c-sub: #29e6ff; --c-hi: #fff27a; --c-third: #52ffc5; --c-side: #140a2b;
+  --accent: var(--c-main); --accent-ink: #1a0e36;
+  --ok: #52ffc5; --warn: #fff27a; --info: #29e6ff; --danger: #ff5ec8;
+  --on-color: #1a0e36; --on-hi: #1a0e36; --on-side: #fdf6ff;
+  --plinth: linear-gradient(180deg, #ff9ecb, #7b4bd6); --shadow-rgb: 0 0 0;
+  --radius: 4px; --r-pill: 4px; --arch: 999px 999px 0 0; --cover-r: 0;
+  --card-border: 1px solid #5a3f98; --card-shadow: 0 0 0 1px rgba(41, 230, 255, .2), 0 0 24px -8px rgba(255, 94, 200, .6);
+  --btn-border: 1px solid #29e6ff; --btn-bg: transparent;
+  --f-display: "DotGothic16", system-ui, sans-serif;
+  --grain: linear-gradient(rgba(41, 230, 255, .07) 1px, transparent 1px) 0 0 / 32px 32px, linear-gradient(90deg, rgba(41, 230, 255, .07) 1px, transparent 1px) 0 0 / 32px 32px;
+  color-scheme: dark;
+}
+[data-skin="vaporwave"] .now-bg .sun {
+  left: 50%; right: auto; transform: translateX(-50%); width: 320px; height: 320px; opacity: .7;
+  background:
+    repeating-linear-gradient(180deg, transparent 0 58%, var(--bg) 58% 61%, transparent 61% 67%, var(--bg) 67% 70%, transparent 70% 76%, var(--bg) 76% 80%),
+    linear-gradient(180deg, #ffb86b, #ff5ec8);
+}
+[data-skin="vaporwave"] .now-bg .floor { display: none; }
+[data-skin="vaporwave"] h1 { text-shadow: 2px 2px 0 #ff5ec8, -2px -2px 0 #29e6ff; }
+
+/* ---------- テーマの選択画面 ---------- */
+.skins { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.skin {
+  display: grid; gap: 8px; padding: 10px 10px 12px; text-align: left; min-width: 0;
+  border: 1.5px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--ink);
+}
+.skin[aria-checked="true"] { border-color: var(--c-main); box-shadow: 0 0 0 2px var(--c-main); }
+.skin-swatch { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; height: 54px; border-radius: 8px; overflow: hidden; border: 1px solid rgba(0, 0, 0, .15); }
+.skin-swatch i { display: block; }
+.skin strong { font: 600 14px/1.3 var(--f-display); }
+.skin small { color: var(--muted); font-size: 12px; line-height: 1.5; }

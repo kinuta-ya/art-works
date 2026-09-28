@@ -58,6 +58,8 @@
     test: null,
   };
 
+  S.skin = MP.skins.apply(store.get('skin', 'midcentury'));
+
   const saved = store.get('settings', {});
   const engine = new MP.Engine({
     mode: saved.mode || 'gapless',
@@ -471,6 +473,15 @@
       const s = engine.s;
       return `
         ${head('SETTINGS', '設定')}
+        <h2>テーマ</h2>
+        <div class="skins" role="radiogroup" aria-label="テーマ">
+          ${MP.skins.LIST.map((k) => `
+            <button class="skin press" role="radio" aria-checked="${S.skin === k.id}" data-skin-pick="${k.id}">
+              <span class="skin-swatch" aria-hidden="true">${k.swatch.map((c) => `<i style="background:${c}"></i>`).join('')}</span>
+              <strong>${esc(k.name)}</strong>
+              <small>${esc(k.desc)}</small>
+            </button>`).join('')}
+        </div>
         <h2>ノンストップモード</h2>
         <div class="mode-cards" role="radiogroup">
           <button class="mode-card press" role="radio" aria-checked="${s.mode === 'gapless'}" data-action="mode" data-mode="gapless">
@@ -823,6 +834,14 @@
     if (d.nav) return go(d.nav);
     if (d.album) return go('album', { albumKey: d.album });
     if (d.genre) return go('genre', { genreName: d.genre });
+    if (d.skinPick) {
+      S.skin = MP.skins.apply(d.skinPick);
+      store.set('skin', S.skin);
+      const y = $('#view').scrollTop;
+      render();
+      $('#view').scrollTop = y;
+      return;
+    }
     if (d.playAlbumIndex != null) {
       const a = S.albumMap.get(S.albumKey);
       return playList(a.tracks, Number(d.playAlbumIndex));
