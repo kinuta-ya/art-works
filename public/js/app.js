@@ -1,4 +1,4 @@
-// 画面（ライブラリ・再生画面・EQ・聴力テスト・設定）
+// 画面（ライブラリ・再生画面・ツール・設定）
 (function (MP) {
   'use strict';
 
@@ -20,6 +20,13 @@
     back: '<path d="m15 18-6-6 6-6"/>',
     folder: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
+    tools: '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/>',
+    gear: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="12" r="2.5"/><circle cx="15.5" cy="12" r="2.5"/><path d="M8.5 6.5v1M15.5 6.5v1"/>',
+    gauge: '<path d="M4 17a8 8 0 1 1 16 0"/><path d="m12 17 4-6"/><circle cx="12" cy="17" r="1.2"/>',
+    shield: '<path d="M12 3 4 6v6c0 4.5 3.4 8 8 9 4.6-1 8-4.5 8-9V6z"/><path d="M9 12h6M12 9v6"/>',
+    palette: '<circle cx="12" cy="12" r="9"/><circle cx="8" cy="10" r="1.3"/><circle cx="12" cy="7.5" r="1.3"/><circle cx="16" cy="10" r="1.3"/><path d="M12 21a2.5 2.5 0 0 1 0-5h2a3 3 0 0 0 3-3"/>',
+    loop: '<path d="M4 12a6 6 0 0 1 6-6h8M15 3l3 3-3 3M20 12a6 6 0 0 1-6 6H6M9 21l-3-3 3-3"/>',
+    knob: '<circle cx="12" cy="13" r="7"/><path d="M12 13V8M5 5l1.5 1.5M19 5l-1.5 1.5M12 3v1"/>',
     spark: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8"/>',
   };
   const icon = (name) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
@@ -28,9 +35,22 @@
     { id: 'albums', label: 'アルバム', icon: 'albums' },
     { id: 'genres', label: 'ジャンル', icon: 'genre' },
     { id: 'songs', label: '曲', icon: 'songs' },
-    { id: 'eq', label: 'EQ', icon: 'eq' },
-    { id: 'hearing', label: '聴力補正', icon: 'ear' },
+    { id: 'tools', label: 'ツール', icon: 'tools' },
     { id: 'settings', label: '設定', icon: 'settings' },
+  ];
+
+  // ツール：設定で有効にしたものだけがツール画面に並ぶ。
+  // audio: 音を変えるツール（有効にすると処理がかかる。ツールの中で一時的にオフにできる）
+  // needs: 使うのに必要な別のツール
+  const TOOLS = [
+    { id: 'nonstop', name: 'ノンストップ', desc: 'ギャップレスとスマートクロスフェードの切り替え', icon: 'loop', def: true },
+    { id: 'theme', name: 'テーマ', desc: '10 種類の外観から選ぶ', icon: 'palette', def: true },
+    { id: 'eq', name: 'EQ', desc: 'パラメトリック EQ と AutoEQ の読み込み', icon: 'eq', audio: true },
+    { id: 'hearing', name: '聴力補正', desc: '聴力テストと、聞こえにくい帯域の補正', icon: 'ear', audio: true },
+    { id: 'rg', name: 'ReplayGain', desc: '曲・アルバムごとの音量差をそろえる', icon: 'knob', audio: true },
+    { id: 'gear', name: '機材プロファイル', desc: '端子・出力モード・ゲインとイヤホンの組み合わせ', icon: 'gear' },
+    { id: 'gaincalc', name: 'ゲインの目安', desc: 'イヤホンに合うゲインと、ノイズの聞こえやすさ', icon: 'gauge', needs: 'gear' },
+    { id: 'safety', name: '聴覚保護メーター', desc: '耳に届く音の大きさの推定と、1 週間に聴いた量', icon: 'shield', needs: 'gear' },
   ];
 
   // ---------- 保存（localStorage は使えないこともある） ----------
@@ -58,22 +78,38 @@
     test: null,
   };
 
-  S.skin = MP.skins.apply(store.get('skin', 'midcentury'));
+  const saved = store.get('settings', {});
+  // ツールの有効／無効（以前の設定から引き継ぐ）
+  const toolDefaults = Object.fromEntries(TOOLS.map((t) => [t.id, !!t.def]));
+  if (saved.eqEnabled) toolDefaults.eq = true;
+  if (saved.hearingEnabled) toolDefaults.hearing = true;
+  if (saved.replayGain && saved.replayGain !== 'off') toolDefaults.rg = true;
+  S.tools = { ...toolDefaults, ...store.get('tools', {}) };
+  S.bypass = { eq: false, hearing: false, rg: false }; // 一時的にオフ（保存しない）
+  S.rgMode = store.get('rgMode', saved.replayGain && saved.replayGain !== 'off' ? saved.replayGain : 'track');
+  S.nsMode = store.get('nsMode', saved.mode || 'gapless');
+  S.gears = store.get('gears', []);
+  S.activeGear = store.get('activeGear', null);
+  S.gearEdit = null;
+  S.hw = { vol: 60, max: 100, step: 0.5, ...store.get('hw', {}) };
+  S.listenDb = store.get('listenDb', 80);
+  S.safetyNow = null;
+
+  S.skin = MP.skins.apply(S.tools.theme ? store.get('skin', 'midcentury') : 'midcentury');
   S.spin = store.get('spin', true);
   document.documentElement.dataset.spin = S.spin ? 'on' : 'off';
 
-  const saved = store.get('settings', {});
   const engine = new MP.Engine({
-    mode: saved.mode || 'gapless',
+    mode: S.tools.nonstop ? S.nsMode : 'gapless',
     crossfadeSec: saved.crossfadeSec || 6,
     levelMatch: saved.levelMatch !== false,
     albumGapless: saved.albumGapless !== false,
     followRate: saved.followRate !== false,
     volume: 1,
-    eqEnabled: !!saved.eqEnabled,
+    eqEnabled: !!S.tools.eq,
     eqBands: saved.eqBands || null,
-    hearingEnabled: !!saved.hearingEnabled,
-    replayGain: saved.replayGain || 'off',
+    hearingEnabled: !!S.tools.hearing,
+    replayGain: S.tools.rg ? S.rgMode : 'off',
     rgPreventClip: saved.rgPreventClip !== false,
     hearingProfile: S.profiles.find((p) => p.id === S.activeProfile) || null,
   });
@@ -88,11 +124,45 @@
   function saveSettings() {
     const s = engine.s;
     store.set('settings', {
-      mode: s.mode, crossfadeSec: s.crossfadeSec, levelMatch: s.levelMatch, albumGapless: s.albumGapless,
-      followRate: s.followRate, eqEnabled: s.eqEnabled, eqBands: s.eqBands, hearingEnabled: s.hearingEnabled,
-      replayGain: s.replayGain, rgPreventClip: s.rgPreventClip,
+      crossfadeSec: s.crossfadeSec, levelMatch: s.levelMatch, albumGapless: s.albumGapless,
+      followRate: s.followRate, eqBands: s.eqBands, rgPreventClip: s.rgPreventClip,
     });
   }
+
+  // ツールの有効／無効と「一時的にオフ」を、再生エンジンとテーマに反映する
+  function applyTools() {
+    const t = S.tools, b = S.bypass;
+    const prof = S.profiles.find((p) => p.id === S.activeProfile) || null;
+    const rgBefore = engine.s.replayGain;
+    engine.update({
+      eqEnabled: !!t.eq && !b.eq,
+      hearingProfile: prof,
+      hearingEnabled: !!t.hearing && !!prof && !b.hearing,
+      replayGain: t.rg && !b.rg ? S.rgMode : 'off',
+      mode: t.nonstop ? S.nsMode : 'gapless',
+    });
+    S.skin = MP.skins.apply(t.theme ? store.get('skin', 'midcentury') : 'midcentury');
+    if (engine.s.replayGain !== rgBefore) refreshRg();
+    updateNow();
+  }
+
+  // ReplayGain をオンにしたら、再生中の曲を解析してからかけ直し、次の曲も予約し直す
+  function refreshRg() {
+    const t = engine.queue[engine.index];
+    if (engine.s.replayGain !== 'off' && t && !MP.insights.hasTag(t) && !MP.insights.get(t)) {
+      const p = engine.currentPlayer;
+      MP.insights.ensure(t, { buffer: p && p.track === t ? p.buffer : null }).then(() => { engine.applyRg(); engine.reschedule(); });
+    } else {
+      engine.applyRg();
+      engine.reschedule();
+    }
+  }
+
+  // ---------- 機材 ----------
+  const activeGear = () => (S.tools.gear ? S.gears.find((g) => g.id === S.activeGear) || null : null);
+  const hwAtten = () => Math.max(0, (S.hw.max - S.hw.vol) * S.hw.step);
+  // デジタルの信号レベル（dBFS、正弦波換算）に足すと耳に届く音圧（dB SPL）になる値
+  const splOffset = () => { const g = activeGear(); return g ? MP.gear.offsetDb(g, hwAtten()) : null; };
 
   // ---------- 小物 ----------
   const $ = (sel, root = document) => root.querySelector(sel);
@@ -290,7 +360,7 @@
   // ---------- 描画：ナビ ----------
   function renderNav() {
     for (const group of $$('[data-navgroup]')) {
-      group.innerHTML = NAV.map((n) => `<button data-nav="${n.id}" ${S.view === n.id || (n.id === 'albums' && S.view === 'album') || (n.id === 'genres' && S.view === 'genre') ? 'aria-current="page"' : ''}>${icon(n.icon)}<span>${n.label}</span></button>`).join('');
+      group.innerHTML = NAV.map((n) => `<button data-nav="${n.id}" ${S.view === n.id || (n.id === 'albums' && S.view === 'album') || (n.id === 'genres' && S.view === 'genre') || (n.id === 'tools' && S.view === 'tool') ? 'aria-current="page"' : ''}>${icon(n.icon)}<span>${n.label}</span></button>`).join('');
     }
   }
 
@@ -303,7 +373,7 @@
   }
 
   function go(view, extra = {}) {
-    if (S.test && view !== 'hearing') { S.test.close(); S.test = null; }
+    if (S.test && !(view === 'tool' && (extra.toolId || S.toolId) === 'hearing')) { S.test.close(); S.test = null; }
     Object.assign(S, { view }, extra);
     render();
     $('#view').scrollTop = 0;
@@ -443,14 +513,271 @@
         <ol class="tracks" data-songlist>${songRows()}</ol>`;
     },
 
-    eq() {
+    settings() {
+      const s = engine.s;
+      const sw = (id, label, note, checked, attr) => `
+        <label class="switch"><span class="label">${label}<small>${note}</small></span>
+          <input type="checkbox" role="switch" id="${id}" ${attr} ${checked ? 'checked' : ''}></label>`;
+      return `
+        ${head('SETTINGS', '設定')}
+        <p class="muted">有効にしたツールは「ツール」に並びます。細かい調整は各ツールの中で行います。</p>
+        <h2>ツール</h2>
+        <div class="card">
+          ${TOOLS.map((t) => sw(`tool-${t.id}`, t.name + (t.audio ? ' <span class="fmt">音を変える</span>' : ''), esc(t.desc) + (t.needs ? `（${esc(TOOLS.find((x) => x.id === t.needs).name)}を使います）` : ''), S.tools[t.id], `data-tool-toggle="${t.id}"`)).join('')}
+        </div>
+        <h2>再生</h2>
+        <div class="card">
+          ${sw('levelMatch', '音量差をなめらかにする', 'スマートクロスフェード時、次の曲の音量を前の曲に合わせ、6 秒かけて元に戻します（最大 ±6dB）', s.levelMatch, 'data-setting="levelMatch"')}
+          ${sw('albumGapless', '同じアルバムの連続トラックはギャップレス', 'スマートクロスフェード中も、アルバムの流れを壊さないようクロスフェードしません', s.albumGapless, 'data-setting="albumGapless"')}
+          ${sw('rg-clip', 'ReplayGain の音割れを防ぐ', '持ち上げる場合も、ピークが 0dBFS を超えない量までにします', s.rgPreventClip, 'data-setting="rgPreventClip"')}
+        </div>
+        <h2>表示</h2>
+        <div class="card">
+          ${sw('spin', 'レコードを回す', '再生中にジャケットのレコードを回します。端末の「動きを減らす」設定がオンでも回ります', S.spin, 'data-spin-toggle')}
+          ${sw('vu', 'VU メーターを表示', '再生画面に左右のアナログ VU メーターを出します（信号をのぞくだけで、音には手を加えません）', S.vu, 'data-vu-toggle')}
+        </div>
+        <h2>出力</h2>
+        <div class="card">
+          ${sw('followRate', '出力サンプルレートを音源に合わせる', '再生開始時に、音源と同じレートで出力を開き直します（ブラウザが対応している範囲で）', s.followRate, 'data-setting="followRate"')}
+        </div>`;
+    },
+
+    tools() {
+      const on = TOOLS.filter((t) => S.tools[t.id]);
+      return `
+        ${head(`TOOLS / ${pad3(on.length)}`, 'ツール')}
+        ${on.length ? `
+          <div class="tools">
+            ${on.map((t) => `
+              <button class="tool-card press" data-tool="${t.id}">
+                <span class="tool-icon">${icon(t.icon)}</span>
+                <strong>${esc(t.name)}</strong>
+                <small>${esc(toolStatus(t.id))}</small>
+              </button>`).join('')}
+          </div>` : `
+          <div class="empty">
+            <h2>有効なツールがありません</h2>
+            <p>設定でツールを有効にすると、ここに並びます。</p>
+            <div class="actions"><button class="btn press primary" data-nav="settings">設定を開く</button></div>
+          </div>`}
+        <h2>Web デモについて</h2>
+        <div class="card">
+          <p style="margin-top:0">これは M8T 向け Android アプリの画面と機能の試作です。ブラウザでは次の限界があります。</p>
+          <ul class="muted" style="margin:0;padding-left:1.2em">
+            <li>出力は OS のミキサーを通るため、ビットパーフェクトにはなりません。</li>
+            <li>ALAC と DSD の再生はブラウザ次第です（Chrome は非対応）。</li>
+            <li>再読み込みするとライブラリが消えます。</li>
+          </ul>
+        </div>`;
+    },
+
+    tool() {
+      const fn = TOOL_VIEWS[S.toolId];
+      if (!fn || !S.tools[S.toolId]) return VIEWS.tools();
+      return fn();
+    },
+  };
+
+  // ---------- ツールの画面 ----------
+  const toolHead = (tag, title) => `
+    <button class="back press" data-nav="tools">${icon('back')}ツール</button>
+    ${head(tag, title)}`;
+
+  // 音を変えるツールの「一時的にオフ」
+  const bypassCard = (id, name, sub = '') => `
+    <div class="card">
+      <label class="switch"><span class="label">一時的にオフにする<small>${sub ? sub + '。' : ''}元の音と聴き比べるときに使います。${esc(name)}を使わない場合は、設定で無効にしてください</small></span>
+        <input type="checkbox" role="switch" id="bypass-${id}" data-bypass="${id}" ${S.bypass[id] ? 'checked' : ''}></label>
+    </div>`;
+
+  const needGear = (what) => `
+    <div class="empty">
+      <h2>機材プロファイルが必要です</h2>
+      <p>${what}には、使っている端子・出力モード・ゲインと、イヤホンの感度が必要です。</p>
+      <div class="actions">
+        ${S.tools.gear ? '<button class="btn press primary" data-tool="gear">機材プロファイルを開く</button>' : '<button class="btn press primary" data-nav="settings">設定で機材プロファイルを有効にする</button>'}
+      </div>
+    </div>`;
+
+  function toolStatus(id) {
+    const g = activeGear();
+    switch (id) {
+      case 'nonstop': return S.nsMode === 'crossfade' ? 'スマートクロスフェード' : 'ギャップレス';
+      case 'theme': return (MP.skins.LIST.find((k) => k.id === S.skin) || {}).name || '';
+      case 'eq': return S.bypass.eq ? '一時的にオフ' : `オン ・ プリアンプ ${engine.preampDb.toFixed(1)}dB`;
+      case 'hearing': { const p = S.profiles.find((x) => x.id === S.activeProfile); return !p ? 'プロファイルなし' : S.bypass.hearing ? '一時的にオフ' : p.name; }
+      case 'rg': return S.bypass.rg ? '一時的にオフ' : S.rgMode === 'album' ? 'アルバム単位' : 'トラック単位';
+      case 'gear': return g ? `${g.name}（${MP.gear.describe(g)}）` : '未登録';
+      case 'gaincalc': {
+        if (!g) return '機材プロファイルが必要です';
+        const r = MP.gear.recommend(g, S.listenDb);
+        return r.pick ? `おすすめ：${MP.gear.GAINS[r.pick]}ゲイン` : 'イヤホンの感度を入れてください';
+      }
+      case 'safety': return splOffset() == null ? '機材プロファイルが必要です' : `今週 ${Math.round(MP.gear.weekPercent())}%`;
+    }
+    return '';
+  }
+
+  const TOOL_VIEWS = {
+    nonstop() {
       const s = engine.s;
       return `
-        ${head('PARAMETRIC EQ / 32-BIT FLOAT', 'EQ')}
-        <div class="card">
-          <label class="switch"><span class="label">EQ を使う<small>オフのときは処理経路から完全に外れます（素通し）</small></span>
-            <input type="checkbox" role="switch" data-eq-toggle ${s.eqEnabled ? 'checked' : ''}></label>
+        ${toolHead('NONSTOP', 'ノンストップ')}
+        <div class="mode-cards" role="radiogroup">
+          <button class="mode-card press" role="radio" aria-checked="${S.nsMode === 'gapless'}" data-action="mode" data-mode="gapless">
+            <strong>ギャップレス</strong>
+            <span>曲の継ぎ目に無音をはさまず、そのままつなぎます。音には一切手を加えません。ライブ盤やクラシック、コンセプトアルバム向け。</span>
+          </button>
+          <button class="mode-card press" role="radio" aria-checked="${S.nsMode === 'crossfade'}" data-action="mode" data-mode="crossfade">
+            <strong>スマートクロスフェード</strong>
+            <span>曲の頭と終わりの無音を飛ばし、フェードアウトを検出して長さを合わせ、等パワーカーブで重ねます。シャッフルやプレイリスト向け。</span>
+          </button>
         </div>
+        <div class="card">
+          <div class="slider-row">
+            <label for="xf">クロスフェードの長さ（基準）</label><output data-xf-out>${s.crossfadeSec} 秒</output>
+            <input id="xf" type="range" min="2" max="12" step="1" value="${s.crossfadeSec}" data-xf>
+          </div>
+          <p class="note" style="margin-top:0">曲にフェードアウトがある場合は、その長さに合わせて自動で調整します。音量差の補正と、同じアルバムでのギャップレスは設定で切り替えられます。</p>
+        </div>`;
+    },
+
+    theme() {
+      return `
+        ${toolHead('THEME', 'テーマ')}
+        <div class="skins" role="radiogroup" aria-label="テーマ">
+          ${MP.skins.LIST.map((k) => `
+            <button class="skin press" role="radio" aria-checked="${S.skin === k.id}" data-skin-pick="${k.id}">
+              <span class="skin-swatch" aria-hidden="true">${k.swatch.map((c) => `<i style="background:${c}"></i>`).join('')}</span>
+              <strong>${esc(k.name)}</strong>
+              <small>${esc(k.desc)}</small>
+            </button>`).join('')}
+        </div>`;
+    },
+
+    rg() {
+      return `
+        ${toolHead('REPLAYGAIN / -18 LUFS', 'ReplayGain')}
+        ${bypassCard('rg', 'ReplayGain')}
+        <div class="card">
+          <div class="seg" role="radiogroup" aria-label="ReplayGain の単位">
+            ${[['track', 'トラック単位'], ['album', 'アルバム単位']].map(([v, l]) => `<button role="radio" aria-checked="${S.rgMode === v}" data-rg="${v}">${l}</button>`).join('')}
+          </div>
+          <p class="note">曲やアルバムごとの音量差を、音量の調整だけでそろえます（音の強弱は圧縮しません）。基準は -18 LUFS。タグに ReplayGain があればそれを使い、無ければ再生前に解析して求めます。アルバム単位は、アルバムの全曲を解析済みのときに使えます（アルバム画面の「アルバムを解析」）。</p>
+        </div>`;
+    },
+
+    gear() {
+      const edit = S.gearEdit ? S.gears.find((g) => g.id === S.gearEdit) || null : null;
+      const f = edit || { name: '', port: '4.4', mode: 'transistor', gain: 'low', phone: { name: '', sens: '', sensUnit: 'mW', imp: '' }, hearingId: '' };
+      const opt = (map, cur) => Object.entries(map).map(([k, v]) => `<option value="${k}" ${k === cur ? 'selected' : ''}>${v}</option>`).join('');
+      return `
+        ${toolHead('GEAR / M8T', '機材プロファイル')}
+        <p class="muted">使っている端子・出力モード・ゲインと、イヤホン・ヘッドホンの組み合わせを保存します。切り替えると、結び付けた聴力補正プロファイルも切り替わります。ゲインの目安と聴覚保護メーターは、ここの値を使います。</p>
+        <div class="card">
+          <div class="card-head"><span>プロファイル</span></div>
+          ${S.gears.length ? S.gears.map((g) => `
+            <div class="profile">
+              <input type="radio" name="gear" id="gear-${g.id}" data-gear="${g.id}" ${g.id === S.activeGear ? 'checked' : ''} aria-label="${esc(g.name)} を使う">
+              <span class="name">${esc(g.name)}<small>${esc(MP.gear.describe(g))}${g.phone.sens !== '' && g.phone.sens != null ? ` ・ ${esc(g.phone.name || 'イヤホン')} ${g.phone.sens}dB/${g.phone.sensUnit}${g.phone.imp ? ` ・ ${g.phone.imp}Ω` : ''}` : ' ・ 感度未入力'}</small></span>
+              <button class="btn press" data-edit-gear="${g.id}">編集</button>
+              <button class="btn press" data-delete-gear="${g.id}">削除</button>
+            </div>`).join('') : '<p class="muted" style="margin:0">まだありません。下のフォームで追加してください。</p>'}
+        </div>
+        <h2>${edit ? '編集' : '追加'}</h2>
+        <form class="card gear-form" data-gear-form>
+          <div class="form-grid">
+            <label>名前<input id="g-name" required value="${esc(f.name)}" placeholder="例：普段使い（4.4mm・三極管）"></label>
+            <label>端子<select id="g-port">${opt(MP.gear.PORTS, f.port)}</select></label>
+            <label>出力モード<select id="g-mode">${opt(MP.gear.MODES, f.mode)}</select></label>
+            <label>ゲイン<select id="g-gain">${opt({ low: '低', mid: '中', high: '高' }, f.gain)}</select></label>
+            <label>イヤホン・ヘッドホン<input id="g-phone" value="${esc(f.phone.name)}" placeholder="機種名"></label>
+            <label>感度<span class="with-unit"><input id="g-sens" type="number" step="0.1" inputmode="decimal" value="${esc(f.phone.sens)}" placeholder="例：108"><select id="g-unit">${opt({ mW: 'dB/mW', V: 'dB/V' }, f.phone.sensUnit)}</select></span></label>
+            <label>インピーダンス（Ω）<input id="g-imp" type="number" step="0.1" inputmode="decimal" value="${esc(f.phone.imp)}" placeholder="例：32"></label>
+            <label>聴力補正プロファイル<select id="g-hearing"><option value="">結び付けない</option>${S.profiles.map((p) => `<option value="${p.id}" ${p.id === f.hearingId ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
+          </div>
+          <p class="note">感度とインピーダンスは、イヤホンの仕様表の値を入れてください（dB/mW の場合はインピーダンスも必要です）。</p>
+          <div class="actions" style="margin-top:12px">
+            <button class="btn press primary" type="submit">${edit ? '保存' : '追加して使う'}</button>
+            ${edit ? '<button class="btn press" type="button" data-action="cancel-gear">やめる</button>' : ''}
+          </div>
+        </form>
+        <h2>本体の音量</h2>
+        <div class="card">
+          <div class="slider-row">
+            <label for="hw-vol">M8T の音量表示</label><output data-hw-out>${S.hw.vol} / ${S.hw.max}（最大から −${hwAtten().toFixed(1)}dB）</output>
+            <input id="hw-vol" type="range" min="0" max="${S.hw.max}" value="${S.hw.vol}" data-hw-vol>
+          </div>
+          <div class="form-grid">
+            <label>音量表示の最大<input id="hw-max" type="number" min="10" max="200" value="${S.hw.max}" data-hw-max></label>
+            <label>1 目盛りの変化（dB）<input id="hw-step" type="number" min="0.1" max="3" step="0.1" value="${S.hw.step}" data-hw-step></label>
+          </div>
+          <p class="note">本体の音量はアプリから読み取れないため、表示に合わせて入れてください。1 目盛りあたりの変化量は仮の値です。Android 版では自動で読み取る予定です。</p>
+        </div>`;
+    },
+
+    gaincalc() {
+      const g = activeGear();
+      if (!g) return toolHead('GAIN', 'ゲインの目安') + needGear('ゲインの目安');
+      const r = MP.gear.recommend(g, S.listenDb);
+      if (!r.pick) return toolHead('GAIN', 'ゲインの目安') + needGear('ゲインの目安');
+      const f1 = (v) => (v == null ? '—' : v.toFixed(1));
+      return `
+        ${toolHead('GAIN / ' + MP.gear.PORTS[g.port], 'ゲインの目安')}
+        <p class="muted">${esc(g.name)}：${esc(MP.gear.describe(g))} ・ ${esc(g.phone.name || 'イヤホン')}（${g.phone.sens}dB/${g.phone.sensUnit}${g.phone.imp ? `・${g.phone.imp}Ω` : ''}）</p>
+        <div class="card">
+          <div class="slider-row">
+            <label for="listen">ふだん聴く音量</label><output data-listen-out>${S.listenDb} dB SPL</output>
+            <input id="listen" type="range" min="65" max="95" value="${S.listenDb}" data-listen>
+          </div>
+          <p class="note" style="margin-top:0">必要な最大音圧 = ふだんの音量 + 曲のピークの余裕 20dB + 音量つまみの余裕 6dB = <strong>${r.need} dB SPL</strong></p>
+        </div>
+        <div class="card">
+          <div class="card-head"><span>おすすめ：${MP.gear.GAINS[r.pick]}ゲイン</span>${g.gain === r.pick ? '<span class="badge pure">いまの設定</span>' : `<button class="btn press" data-set-gain="${r.pick}">このゲインにする</button>`}</div>
+          ${r.short ? '<div class="warning">高ゲインでも、必要な音量に届かない可能性があります。</div>' : ''}
+          <div class="table-wrap"><table class="gtable">
+            <thead><tr><th>ゲイン</th><th>出力電圧</th><th>最大音圧</th><th>ノイズ（推定）</th><th>サーッという音</th></tr></thead>
+            <tbody>
+              ${r.rows.map((row) => { const h = MP.gear.hissLevel(row.noiseSpl); return `
+                <tr class="${row.gain === r.pick ? 'pick' : ''}">
+                  <th>${MP.gear.GAINS[row.gain]}${row.gain === g.gain ? ' ・ いま' : ''}</th>
+                  <td>${row.v.toFixed(2)}V${row.estimated ? '*' : ''}</td>
+                  <td>${f1(row.maxSpl)} dB</td>
+                  <td>${f1(row.noiseSpl)} dB</td>
+                  <td><span class="dotlabel ${h.level}">${h.text}</span></td>
+                </tr>`; }).join('')}
+            </tbody>
+          </table></div>
+          <p class="note">最大音圧は、フルスケールの音を本体の音量最大で鳴らしたときの推定です。ノイズは公表の S/N（${MP.gear.snr(g.port, g.mode)}dB）から計算した推定です。「ごく静かなら」は、ごく静かな部屋で耳を澄ますと聞こえる可能性がある程度（ノイズが 0〜10 dB SPL）。ふつうの静かな部屋の環境音は 20〜30 dB SPL 程度です。${r.rows.some((x) => x.estimated) ? '* 真空管モードの低・中ゲインは公表値が無いため、トランジスタモードと同じ比率で推定しています。' : ''}</p>
+        </div>`;
+    },
+
+    safety() {
+      const off = splOffset();
+      if (off == null) return toolHead('SAFE LISTENING', '聴覚保護メーター') + needGear('聴覚保護メーター');
+      const week = MP.gear.weekPercent(), day = MP.gear.todayPercent();
+      return `
+        ${toolHead('SAFE LISTENING / WHO', '聴覚保護メーター')}
+        <div class="card">
+          <div class="card-head"><span>いま耳に届いている音（推定）</span><span class="note" style="margin:0">${esc(activeGear().name)}</span></div>
+          <div class="big-meter"><strong data-safety-now>—</strong><span>dB SPL</span></div>
+          <p class="note" data-safety-hint>再生中に表示します。</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><span>聴いた量（WHO の目安：80dB で週 40 時間まで）</span></div>
+          <div class="dose"><span>今日</span><div class="progress"><span data-dose-day style="width:${Math.min(100, day)}%"></span></div><output data-dose-day-out>${day.toFixed(1)}%</output></div>
+          <div class="dose"><span>直近 7 日</span><div class="progress"><span data-dose-week style="width:${Math.min(100, week)}%"></span></div><output data-dose-week-out>${week.toFixed(1)}%</output></div>
+          <p class="note">音が 3dB 大きくなると、同じ量に達するまでの時間は半分になります（85dB なら週 12.5 時間、90dB なら週 4 時間）。</p>
+        </div>
+        <p class="note">推定の前提：機材プロファイルの端子・出力モード・ゲインとイヤホンの感度、本体の音量（${S.hw.vol} / ${S.hw.max}、−${hwAtten().toFixed(1)}dB）。耳の形や装着具合でも数 dB 変わるため、目安として使ってください。医療用の測定ではありません。</p>`;
+    },
+  };
+  TOOL_VIEWS.eq = (function () {
+    const VIEWS_EQ = {
+    eq() {
+      return `
+        ${toolHead('PARAMETRIC EQ / 32-BIT FLOAT', 'EQ')}
+        ${bypassCard('eq', 'EQ')}
         <div class="card">
           <canvas class="eq-graph" data-eq-graph></canvas>
           <div class="legend">
@@ -475,17 +802,21 @@
         <p class="note">プリアンプは、ブーストした分だけ自動で音量を下げて音割れを防ぎます。処理は 32bit 浮動小数点です。</p>`;
     },
 
+    };
+    return VIEWS_EQ.eq;
+  })();
+  TOOL_VIEWS.hearing = (function () {
+    const VIEWS_H = {
     hearing() {
       if (S.test) return testView();
       const active = S.profiles.find((p) => p.id === S.activeProfile);
       return `
-        ${head('HEARING / NOT A MEDICAL TEST', '聴力補正')}
+        ${toolHead('HEARING / NOT A MEDICAL TEST', '聴力補正')}
         <p class="muted">左右の耳それぞれで、周波数ごとに聞こえる最小の音量を測り、聞こえにくい帯域だけを少し持ち上げる補正カーブを作ります。</p>
         <div class="warning">医療用の検査ではありません。耳に違和感がある場合は専門医に相談してください。テスト音は小さい音から始まります。</div>
-        <div class="card">
-          <label class="switch"><span class="label">聴力補正を使う<small>${active ? esc(active.name) : 'プロファイルがありません'}</small></span>
-            <input type="checkbox" role="switch" data-hearing-toggle ${engine.s.hearingEnabled ? 'checked' : ''} ${active ? '' : 'disabled'}></label>
-        </div>
+        ${active ? bypassCard('hearing', '聴力補正', esc(active.name)) : '<div class="warning">プロファイルがまだありません。下のテストを受けると作成され、補正がかかります。</div>'}
+        ${calibrationCard()}
+        ${active && active.absolute ? audiogramCard(active) : ''}
         ${active ? `
           <div class="card">
             <div class="card-head"><span>補正カーブ</span></div>
@@ -508,7 +839,7 @@
           ${S.profiles.length ? S.profiles.map((p) => `
             <div class="profile">
               <input type="radio" name="profile" data-profile="${p.id}" ${p.id === S.activeProfile ? 'checked' : ''} aria-label="${esc(p.name)} を使う">
-              <span class="name">${esc(p.name)}<small>${new Date(p.createdAt).toLocaleDateString('ja-JP')} ・ ${Object.keys(p.thresholds.L).length} 周波数</small></span>
+              <span class="name">${esc(p.name)}<small>${new Date(p.createdAt).toLocaleDateString('ja-JP')} ・ ${Object.keys(p.thresholds.L).length} 周波数 ・ ${p.absolute ? '絶対値（dB SPL）' : '相対値'}</small></span>
               <button class="btn press" data-delete-profile="${p.id}">削除</button>
             </div>`).join('') : '<p class="muted" style="margin:0">まだありません。テストを受けると作成されます。</p>'}
         </div>
@@ -519,79 +850,16 @@
         </div>`;
     },
 
-    settings() {
-      const s = engine.s;
-      return `
-        ${head('SETTINGS', '設定')}
-        <h2>テーマ</h2>
-        <div class="skins" role="radiogroup" aria-label="テーマ">
-          ${MP.skins.LIST.map((k) => `
-            <button class="skin press" role="radio" aria-checked="${S.skin === k.id}" data-skin-pick="${k.id}">
-              <span class="skin-swatch" aria-hidden="true">${k.swatch.map((c) => `<i style="background:${c}"></i>`).join('')}</span>
-              <strong>${esc(k.name)}</strong>
-              <small>${esc(k.desc)}</small>
-            </button>`).join('')}
-        </div>
-        <div class="card">
-          <label class="switch"><span class="label">レコードを回す<small>再生中にジャケットのレコードを回します。端末の「動きを減らす」設定がオンでも回ります</small></span>
-            <input type="checkbox" role="switch" id="spin" data-spin-toggle ${S.spin ? 'checked' : ''}></label>
-        </div>
-        <h2>ノンストップモード</h2>
-        <div class="mode-cards" role="radiogroup">
-          <button class="mode-card press" role="radio" aria-checked="${s.mode === 'gapless'}" data-action="mode" data-mode="gapless">
-            <strong>ギャップレス</strong>
-            <span>曲の継ぎ目に無音をはさまず、そのままつなぎます。音には一切手を加えません。ライブ盤やクラシック、コンセプトアルバム向け。</span>
-          </button>
-          <button class="mode-card press" role="radio" aria-checked="${s.mode === 'crossfade'}" data-action="mode" data-mode="crossfade">
-            <strong>スマートクロスフェード</strong>
-            <span>曲の頭と終わりの無音を飛ばし、フェードアウトを検出して長さを合わせ、等パワーカーブで重ねます。シャッフルやプレイリスト向け。</span>
-          </button>
-        </div>
-        <div class="card">
-          <div class="slider-row">
-            <label for="xf">クロスフェードの長さ（基準）</label><output data-xf-out>${s.crossfadeSec} 秒</output>
-            <input id="xf" type="range" min="2" max="12" step="1" value="${s.crossfadeSec}" data-xf>
-          </div>
-          <p class="note" style="margin-top:0">曲にフェードアウトがある場合は、その長さに合わせて自動で調整します。</p>
-          <label class="switch"><span class="label">音量差をなめらかにする<small>クロスフェード時、次の曲の音量を前の曲に合わせ、6 秒かけて元に戻します（最大 ±6dB）</small></span>
-            <input type="checkbox" role="switch" data-setting="levelMatch" ${s.levelMatch ? 'checked' : ''}></label>
-          <label class="switch"><span class="label">同じアルバムの連続トラックはギャップレス<small>アルバムの流れを壊さないよう、クロスフェードしません</small></span>
-            <input type="checkbox" role="switch" data-setting="albumGapless" ${s.albumGapless ? 'checked' : ''}></label>
-        </div>
-        <h2>ReplayGain</h2>
-        <div class="card">
-          <div class="seg" role="radiogroup" aria-label="ReplayGain" style="grid-template-columns:repeat(3,1fr)">
-            ${[['off', 'オフ'], ['track', 'トラック'], ['album', 'アルバム']].map(([v, l]) => `<button role="radio" aria-checked="${s.replayGain === v}" data-rg="${v}">${l}</button>`).join('')}
-          </div>
-          <p class="note">曲やアルバムごとの音量差を、音量の調整だけでそろえます（音の強弱は圧縮しません）。基準は -18 LUFS。タグに ReplayGain があればそれを使い、無ければ再生前に解析して求めます。オンで調整がかかっている間は「加工中」になります。</p>
-          <label class="switch"><span class="label">音割れを防ぐ<small>持ち上げる場合も、ピークが 0dBFS を超えない量までにします</small></span>
-            <input type="checkbox" role="switch" id="rg-clip" data-setting="rgPreventClip" ${s.rgPreventClip ? 'checked' : ''}></label>
-        </div>
-        <h2>表示</h2>
-        <div class="card">
-          <label class="switch"><span class="label">VU メーターを表示<small>再生画面に左右のアナログ VU メーターを出します（信号をのぞくだけで、音には手を加えません）</small></span>
-            <input type="checkbox" role="switch" id="vu" data-vu-toggle ${S.vu ? 'checked' : ''}></label>
-        </div>
-        <h2>出力</h2>
-        <div class="card">
-          <label class="switch"><span class="label">出力サンプルレートを音源に合わせる<small>再生開始時に、音源と同じレートで出力を開き直します（ブラウザが対応している範囲で）</small></span>
-            <input type="checkbox" role="switch" data-setting="followRate" ${s.followRate ? 'checked' : ''}></label>
-        </div>
-        <h2>Web デモについて</h2>
-        <div class="card">
-          <p style="margin-top:0">これは M8T 向け Android アプリの画面と機能の試作です。ブラウザでは次の限界があります。</p>
-          <ul class="muted" style="margin:0;padding-left:1.2em">
-            <li>出力は OS のミキサーを通るため、ビットパーフェクトにはなりません。</li>
-            <li>ALAC と DSD の再生はブラウザ次第です（Chrome は非対応）。</li>
-            <li>再読み込みするとライブラリが消えます。</li>
-          </ul>
-        </div>`;
-    },
-  };
+    };
+    return VIEWS_H.hearing;
+  })();
 
   const AFTER = {
-    eq: drawEq,
-    hearing() { if (!S.test) drawHearing(); },
+    tool() {
+      if (S.toolId === 'eq') drawEq();
+      if (S.toolId === 'hearing' && !S.test) drawHearing();
+      if (S.toolId === 'safety') updateSafetyView();
+    },
   };
 
   function songRows() {
@@ -656,6 +924,38 @@
     ], { freqs: graphFreqs, range: 15 });
   }
 
+  // 絶対値（dB SPL）で測れるかの表示
+  function calibrationCard() {
+    const off = splOffset();
+    const g = activeGear();
+    if (off != null) {
+      return `<div class="card"><div class="verdict ok"><span><strong>絶対値（dB SPL）で測れます</strong>：${esc(g.name)}（${esc(MP.gear.describe(g))}）、本体の音量 ${S.hw.vol} / ${S.hw.max}。テスト中は本体の音量とゲインを変えないでください。</span></div></div>`;
+    }
+    return `<div class="card"><div class="verdict"><span>今は<strong>相対値</strong>で測ります。機材プロファイルにイヤホンの感度を入れ、本体の音量を合わせると、耳に届いた音の大きさ（dB SPL）で測れて補正の精度が上がります。</span></div>${S.tools.gear ? '<div class="actions" style="margin-top:10px"><button class="btn press" data-tool="gear">機材プロファイルを開く</button></div>' : ''}</div>`;
+  }
+
+  // 絶対値で測ったプロファイルの結果（聴力レベルの目安）
+  function audiogramCard(p) {
+    const freqs = Object.keys(p.thresholdsSpl.L).map(Number).sort((a, b) => a - b);
+    const cell = (ear, f) => {
+      const hl = MP.hearing.hearingLevel(p.thresholdsSpl[ear][f], f);
+      const c = MP.hearing.hlCategory(hl);
+      return `<td><span class="dotlabel ${c.level}" title="${c.text}">${Math.round(hl)}</span></td>`;
+    };
+    return `
+      <div class="card">
+        <div class="card-head"><span>聴力レベルの目安（dB）</span></div>
+        <div class="table-wrap"><table class="gtable">
+          <thead><tr><th></th>${freqs.map((f) => `<th>${fmtHz(f)}</th>`).join('')}</tr></thead>
+          <tbody>
+            <tr><th>左耳</th>${freqs.map((f) => cell('L', f)).join('')}</tr>
+            <tr><th>右耳</th>${freqs.map((f) => cell('R', f)).join('')}</tr>
+          </tbody>
+        </table></div>
+        <p class="note">標準的な聴覚しきい値との差です。20 以下が正常範囲の目安で、補正は 20 を超えた分だけにかけます。イヤホンの周波数特性や装着具合の影響を受けるため、医療的な判断には使えません。</p>
+      </div>`;
+  }
+
   function testView() {
     const t = S.test;
     if (t.phase === 'calibrate') {
@@ -664,7 +964,9 @@
         <div class="card">
           <div class="card-head"><span>1. 音量の準備</span></div>
           <p style="margin-top:0">静かな場所で、いつものイヤホン・ヘッドホンを付けてください。M8T の出力モード（トランジスタ / 三極管 / ウルトラリニア）とゲインも、いつもの設定にします。</p>
-          <p>「基準音」を鳴らし、<strong>小さいけれどはっきり聞こえる</strong>音量に DAP のボリュームを合わせてください。テスト中はボリュームを変えないでください。</p>
+          ${t.offset != null
+            ? `<p>本体の音量は <strong>${S.hw.vol} / ${S.hw.max}</strong> のまま変えないでください（機材プロファイルの値で、耳に届く音の大きさを計算します）。基準音は約 ${Math.round(-30 + t.offset)} dB SPL です。</p>`
+            : '<p>「基準音」を鳴らし、<strong>小さいけれどはっきり聞こえる</strong>音量に DAP のボリュームを合わせてください。テスト中はボリュームを変えないでください。</p>'}
           <div class="actions">
             <button class="btn press" data-action="ref-tone">${icon('play')}基準音を鳴らす</button>
             <button class="btn press primary" data-action="begin-test">テストを始める</button>
@@ -709,7 +1011,7 @@
   function startTest(kind) {
     if (engine.state === 'playing') engine.pause();
     const test = new MP.hearing.Test(kind === 'full' ? MP.hearing.FULL : MP.hearing.QUICK);
-    S.test = { phase: 'calibrate', test, kind };
+    S.test = { phase: 'calibrate', test, kind, offset: splOffset(), gearId: activeGear() ? activeGear().id : null };
     test.addEventListener('update', () => { render(); presentSoon(); });
     test.addEventListener('done', () => {
       S.test.phase = 'done';
@@ -736,9 +1038,40 @@
   function applyProfile(id) {
     S.activeProfile = id;
     store.set('activeProfile', id);
-    const p = S.profiles.find((x) => x.id === id) || null;
-    engine.update({ hearingProfile: p, hearingEnabled: !!p && engine.s.hearingEnabled });
-    saveSettings();
+    applyTools();
+  }
+
+  // ---------- 聴覚保護メーター：再生中の音の大きさを推定し、聴いた量を積算する ----------
+  const safetyBuf = new Float32Array(2048);
+  let safetyPow = null;
+  setInterval(() => {
+    const off = S.tools.safety ? splOffset() : null;
+    if (off == null || engine.state !== 'playing' || !engine.meters) { S.safetyNow = null; updateSafetyView(); return; }
+    let sum = 0, n = 0;
+    for (const a of engine.meters) {
+      a.getFloatTimeDomainData(safetyBuf);
+      for (let i = 0; i < safetyBuf.length; i++) sum += safetyBuf[i] * safetyBuf[i];
+      n += safetyBuf.length;
+    }
+    const pow = sum / n;
+    safetyPow = safetyPow == null ? pow : safetyPow * 0.8 + pow * 0.2; // 約 2.5 秒でならす
+    const db = safetyPow > 0 ? 10 * Math.log10(safetyPow * 2) : -Infinity; // 正弦波換算の dBFS
+    S.safetyNow = Number.isFinite(db) ? db + off : null;
+    if (S.safetyNow != null) MP.gear.addDose(0.5, S.safetyNow);
+    updateSafetyView();
+  }, 500);
+
+  function updateSafetyView() {
+    const el = $('[data-safety-now]');
+    if (el) {
+      el.textContent = S.safetyNow == null ? '—' : Math.max(0, S.safetyNow).toFixed(0);
+      const hint = $('[data-safety-hint]');
+      if (hint) hint.textContent = S.safetyNow == null ? '再生中に表示します。' : S.safetyNow >= 85 ? '大きめです。長時間続けると、聴いてよい量をすぐ使い切ります。' : S.safetyNow >= 75 ? 'ふつうの音量です。' : '控えめな音量です。';
+      const week = MP.gear.weekPercent(), day = MP.gear.todayPercent();
+      const set = (sel, v) => { const x = $(sel); if (x) { if (x.tagName === 'OUTPUT') x.textContent = v.toFixed(1) + '%'; else x.style.width = Math.min(100, v) + '%'; } };
+      set('[data-dose-day]', day); set('[data-dose-day-out]', day); set('[data-dose-week]', week); set('[data-dose-week-out]', week);
+    }
+    if (nowOpen) updateSignal();
   }
 
   // ---------- 再生画面 ----------
@@ -765,6 +1098,12 @@
 
   function updateSignal() {
     const { stages, pure } = engine.signalPath();
+    const g = activeGear();
+    const at = stages.findIndex((x) => x.label === '出力');
+    const extra = [];
+    if (g) extra.push({ label: '機材', value: `${g.name}（${MP.gear.describe(g)}）`, status: 'info' });
+    if (S.tools.safety && S.safetyNow != null) extra.push({ label: '耳に届く音', value: `約 ${Math.max(0, S.safetyNow).toFixed(0)} dB SPL（推定）`, status: S.safetyNow >= 85 ? 'warn' : 'info' });
+    if (extra.length) stages.splice(at < 0 ? stages.length : at + 1, 0, ...extra);
     for (const b of $$('[data-pure-badge]')) {
       const has = engine.queue[engine.index];
       b.textContent = has ? (pure ? '素通し' : '加工中') : '';
@@ -819,6 +1158,7 @@
     $('[data-action="shuffle"]').setAttribute('aria-pressed', S.shuffle);
     $('[data-action="repeat"]').setAttribute('aria-pressed', S.repeat);
     for (const b of $$('.seg [data-mode]')) b.setAttribute('aria-checked', b.dataset.mode === engine.s.mode);
+    $('#now .seg').hidden = !S.tools.nonstop;
     const vol = Math.round(engine.s.volume * 100);
     $('.volume').value = vol;
     $('.vol-label').textContent = vol === 100 ? '100%（素通し）' : `${vol}%（デジタル音量）`;
@@ -982,25 +1322,34 @@
     const d = el.dataset;
 
     if (d.nav) return go(d.nav);
+    if (d.tool) return go('tool', { toolId: d.tool });
+    if (d.editGear) { S.gearEdit = d.editGear; render(); $('[data-gear-form]').scrollIntoView({ block: 'start' }); return; }
+    if (d.deleteGear) {
+      S.gears = S.gears.filter((g) => g.id !== d.deleteGear);
+      if (S.activeGear === d.deleteGear) S.activeGear = S.gears[0] ? S.gears[0].id : null;
+      if (S.gearEdit === d.deleteGear) S.gearEdit = null;
+      store.set('gears', S.gears); store.set('activeGear', S.activeGear);
+      updateNow();
+      return render();
+    }
+    if (d.setGain) {
+      const g = activeGear();
+      if (g) { g.gain = d.setGain; store.set('gears', S.gears); toast(`${g.name} のゲインを「${MP.gear.GAINS[g.gain]}」にしました。本体のゲインも合わせてください`, 4000); }
+      return render();
+    }
     if (d.album) return go('album', { albumKey: d.album });
     if (d.genre) return go('genre', { genreName: d.genre });
     if (d.rg) {
-      engine.update({ replayGain: d.rg });
-      saveSettings();
-      for (const b of $$('[data-rg]')) b.setAttribute('aria-checked', b.dataset.rg === d.rg);
-      // オンにしたら、再生中の曲の解析を済ませてからかけ直す
-      const t = engine.queue[engine.index];
-      if (d.rg !== 'off' && t && !MP.insights.hasTag(t) && !MP.insights.get(t)) {
-        const p = engine.currentPlayer;
-        MP.insights.ensure(t, { buffer: p && p.track === t ? p.buffer : null }).then(() => { engine.applyRg(); engine.reschedule(); });
-      } else {
-        engine.reschedule(); // 予約済みの次の曲も、解析してから予約し直す
-      }
+      S.rgMode = d.rg;
+      store.set('rgMode', S.rgMode);
+      for (const x of $$('[data-rg]')) x.setAttribute('aria-checked', x.dataset.rg === d.rg);
+      applyTools();
+      refreshRg();
       return;
     }
     if (d.skinPick) {
+      store.set('skin', d.skinPick);
       S.skin = MP.skins.apply(d.skinPick);
-      store.set('skin', S.skin);
       const y = $('#view').scrollTop;
       render();
       $('#view').scrollTop = y;
@@ -1025,10 +1374,7 @@
     if (d.deleteProfile) {
       S.profiles = S.profiles.filter((p) => p.id !== d.deleteProfile);
       store.set('profiles', S.profiles);
-      if (S.activeProfile === d.deleteProfile) {
-        applyProfile(S.profiles[0] ? S.profiles[0].id : null);
-        if (!S.profiles.length) { engine.update({ hearingEnabled: false }); saveSettings(); }
-      }
+      if (S.activeProfile === d.deleteProfile) applyProfile(S.profiles[0] ? S.profiles[0].id : null);
       return render();
     }
 
@@ -1059,16 +1405,21 @@
         return;
       }
       case 'mode':
-        engine.update({ mode: d.mode });
-        saveSettings();
-        updateNow();
-        if (S.view === 'settings') render();
+        S.nsMode = d.mode;
+        store.set('nsMode', S.nsMode);
+        applyTools();
+        if (S.view === 'tool') render();
         return;
+      case 'cancel-gear':
+        S.gearEdit = null;
+        return render();
       case 'import-autoeq': {
         try {
           const { bands } = MP.eq.parseAutoEq($('[data-autoeq]').value);
           setBands(bands, 'autoeq');
-          if (!engine.s.eqEnabled) { engine.update({ eqEnabled: true }); saveSettings(); }
+          if (!S.tools.eq) { S.tools.eq = true; store.set('tools', S.tools); }
+          S.bypass.eq = false;
+          applyTools();
           toast(`${bands.length} 個のフィルターを読み込みました（プリアンプは自動で計算します）`);
           render();
         } catch (err) { toast(err.message, 4000); }
@@ -1091,14 +1442,16 @@
       case 'cancel-test': return endTest();
       case 'save-profile': {
         const name = ($('[data-profile-name]').value || S.test.defaultName).trim();
-        const p = MP.hearing.makeProfile(name, S.test.test.results);
+        const p = MP.hearing.makeProfile(name, S.test.test.results, 0.5, 10, S.test.offset, S.test.gearId);
         S.profiles.push(p);
         store.set('profiles', S.profiles);
         S.test.test.close();
+        // 機材プロファイルに結び付ける
+        const g = S.gears.find((x) => x.id === S.test.gearId);
+        if (g) { g.hearingId = p.id; store.set('gears', S.gears); }
         S.test = null;
-        engine.update({ hearingEnabled: true });
         applyProfile(p.id);
-        toast('プロファイルを保存し、聴力補正をオンにしました');
+        toast(`プロファイルを保存し、聴力補正をオンにしました（${p.absolute ? '絶対値' : '相対値'}）`);
         return render();
       }
     }
@@ -1131,6 +1484,19 @@
     if (el.classList.contains('seek')) { seeking = true; updateTime(); return; }
     if ('xf' in d) {
       $('[data-xf-out]').textContent = `${el.value} 秒`;
+      return;
+    }
+    if ('hwVol' in d) {
+      S.hw.vol = Number(el.value);
+      store.set('hw', S.hw);
+      $('[data-hw-out]').textContent = `${S.hw.vol} / ${S.hw.max}（最大から −${hwAtten().toFixed(1)}dB）`;
+      return;
+    }
+    if ('listen' in d) {
+      S.listenDb = Number(el.value);
+      store.set('listenDb', S.listenDb);
+      const v = $('#view'), y = v.scrollTop; render(); v.scrollTop = y;
+      $('#listen').focus();
       return;
     }
     if ('hStrength' in d || 'hMax' in d) {
@@ -1170,11 +1536,39 @@
       document.documentElement.dataset.spin = S.spin ? 'on' : 'off';
       return;
     }
-    if ('eqToggle' in d) { engine.update({ eqEnabled: el.checked }); saveSettings(); return; }
-    if ('hearingToggle' in d) { engine.update({ hearingEnabled: el.checked }); saveSettings(); return; }
+    if ('toolToggle' in d) {
+      S.tools[d.toolToggle] = el.checked;
+      store.set('tools', S.tools);
+      if (!el.checked && d.toolToggle in S.bypass) S.bypass[d.toolToggle] = false;
+      applyTools();
+      return;
+    }
+    if ('bypass' in d) {
+      S.bypass[d.bypass] = el.checked;
+      applyTools();
+      toast(el.checked ? '一時的にオフにしました（素通しで聴き比べられます）' : 'オンに戻しました');
+      return;
+    }
+    if ('gear' in d && el.type === 'radio') {
+      S.activeGear = d.gear;
+      store.set('activeGear', S.activeGear);
+      const g = activeGear();
+      if (g && g.hearingId && S.profiles.some((p) => p.id === g.hearingId)) applyProfile(g.hearingId);
+      updateNow();
+      toast(`機材を「${g.name}」に切り替えました`);
+      return render();
+    }
+    if ('hwMax' in d || 'hwStep' in d) {
+      S.hw.max = Math.min(200, Math.max(10, Number($('#hw-max').value) || 100));
+      S.hw.step = Math.min(3, Math.max(0.1, Number($('#hw-step').value) || 0.5));
+      S.hw.vol = Math.min(S.hw.vol, S.hw.max);
+      store.set('hw', S.hw);
+      return render();
+    }
     if ('setting' in d) { engine.update({ [d.setting]: el.checked }); saveSettings(); return; }
     if ('xf' in d) { engine.update({ crossfadeSec: Number(el.value) }); saveSettings(); return; }
     if ('profile' in d) { applyProfile(d.profile); render(); return; }
+    if ('hwVol' in d) { if (S.view === 'tool') render(); return; }
     if ('hStrength' in d || 'hMax' in d) {
       store.set('profiles', S.profiles);
       applyProfile(S.activeProfile);
@@ -1195,6 +1589,34 @@
     }
   });
 
+  document.addEventListener('submit', (e) => {
+    if (!e.target.matches('[data-gear-form]')) return;
+    e.preventDefault();
+    const num = (id) => { const v = $(id).value.trim(); return v === '' ? '' : Number(v); };
+    const data = {
+      name: $('#g-name').value.trim() || '機材',
+      port: $('#g-port').value, mode: $('#g-mode').value, gain: $('#g-gain').value,
+      phone: { name: $('#g-phone').value.trim(), sens: num('#g-sens'), sensUnit: $('#g-unit').value, imp: num('#g-imp') },
+      hearingId: $('#g-hearing').value,
+    };
+    if (S.gearEdit) {
+      Object.assign(S.gears.find((g) => g.id === S.gearEdit), data);
+      S.gearEdit = null;
+      toast('保存しました');
+    } else {
+      const g = { id: 'g' + Date.now().toString(36), ...data };
+      S.gears.push(g);
+      S.activeGear = g.id;
+      toast(`「${g.name}」を追加して、使うようにしました`);
+    }
+    store.set('gears', S.gears);
+    store.set('activeGear', S.activeGear);
+    const g = activeGear();
+    if (g && g.hearingId && S.profiles.some((p) => p.id === g.hearingId)) applyProfile(g.hearingId);
+    updateNow();
+    render();
+  });
+
   // EQ スライダーを離したら保存
   document.addEventListener('pointerup', (e) => { if (e.target.matches('[data-band-gain]')) saveSettings(); });
 
@@ -1204,7 +1626,7 @@
     else if (e.key === 'Escape' && nowOpen) closeNow();
   });
 
-  window.addEventListener('resize', () => { if (S.view === 'eq') drawEq(); if (S.view === 'hearing' && !S.test) drawHearing(); });
+  window.addEventListener('resize', () => { if (S.view === 'tool' && S.toolId === 'eq') drawEq(); if (S.view === 'tool' && S.toolId === 'hearing' && !S.test) drawHearing(); });
 
   // 初期化
   for (const el of $$('[data-icon]')) el.innerHTML = icon(el.dataset.icon);

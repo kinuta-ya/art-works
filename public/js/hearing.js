@@ -10,7 +10,7 @@
   // 周波数ごとの「人の耳のもともとの感度差」を補正に含めないために差し引く。
   const REF = { 250: 11, 500: 4, 1000: 2, 2000: -1, 3000: -5, 4000: -5, 6000: 4, 8000: 13, 12000: 12 };
 
-  const MIN_DB = -100, MAX_DB = -10, START_DB = -40;
+  const MIN_DB = -120, MAX_DB = -10, START_DB = -40;
 
   class Test extends EventTarget {
     constructor(freqs) {
@@ -117,6 +117,28 @@
   //  1) 標準しきい値の目安を差し引き、人の耳のもともとの感度差を除く
   //  2) 両耳の中央値を基準に、聞こえにくい周波数だけを持ち上げる（下げはしない）
   //  3) 補聴器のハーフゲイン則にならい、差の strength 倍だけ補正。maxBoost で上限を設ける
+  // 絶対値（dB SPL）で測った場合：標準しきい値との差を「聴力レベル（HL）」の目安とし、
+  // 20dB を超えた分だけを補聴器のハーフゲイン則にならって補う
+  function computeAbsolute(thresholdsSpl, strength = 0.5, maxBoost = 10) {
+    const out = {};
+    for (const ear of ['L', 'R']) {
+      out[ear] = Object.keys(thresholdsSpl[ear]).map(Number).sort((a, b) => a - b).map((f) => {
+        const hl = thresholdsSpl[ear][f] - (REF[f] || 0);
+        return { freq: f, gain: Math.round(Math.min(maxBoost, Math.max(0, (hl - 20) * strength)) * 10) / 10 };
+      });
+    }
+    return out;
+  }
+
+  // 聴力レベルの目安の区分（医療的な判断ではない）
+  function hlCategory(hl) {
+    if (hl <= 20) return { level: 'ok', text: '正常範囲の目安' };
+    if (hl <= 40) return { level: 'mid', text: '軽度相当の目安' };
+    if (hl <= 70) return { level: 'bad', text: '中等度相当の目安' };
+    return { level: 'bad', text: '高度相当の目安' };
+  }
+  const hearingLevel = (spl, f) => spl - (REF[f] || 0);
+
   function computeCurves(thresholds, strength = 0.5, maxBoost = 10) {
     const norm = { L: {}, R: {} };
     const all = [];
@@ -138,19 +160,24 @@
     return out;
   }
 
-  function makeProfile(name, thresholds, strength = 0.5, maxBoost = 10) {
+  // offset: テスト音の dBFS を dB SPL に換算する値（機材プロファイルから。無ければ相対の測定）
+  function makeProfile(name, thresholds, strength = 0.5, maxBoost = 10, offset = null, gearId = null) {
+    const absolute = Number.isFinite(offset);
+    const spl = absolute ? { L: {}, R: {} } : null;
+    if (absolute) for (const ear of ['L', 'R']) for (const [f, db] of Object.entries(thresholds[ear])) spl[ear][f] = db + offset;
     return {
       id: 'h' + Date.now().toString(36),
       name,
       createdAt: new Date().toISOString(),
-      thresholds, strength, maxBoost,
-      ...computeCurves(thresholds, strength, maxBoost),
+      thresholds, strength, maxBoost, absolute, thresholdsSpl: spl, gearId,
+      ...(absolute ? computeAbsolute(spl, strength, maxBoost) : computeCurves(thresholds, strength, maxBoost)),
     };
   }
 
   function retune(profile, strength, maxBoost) {
-    return { ...profile, strength, maxBoost, ...computeCurves(profile.thresholds, strength, maxBoost) };
+    const curves = profile.absolute ? computeAbsolute(profile.thresholdsSpl, strength, maxBoost) : computeCurves(profile.thresholds, strength, maxBoost);
+    return { ...profile, strength, maxBoost, ...curves };
   }
 
-  MP.hearing = { Test, FULL, QUICK, makeProfile, retune, computeCurves };
+  MP.hearing = { Test, FULL, QUICK, makeProfile, retune, computeCurves, hlCategory, hearingLevel };
 })(window.MP = window.MP || {});
