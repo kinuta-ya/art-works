@@ -16,6 +16,8 @@
     eqBands: null,
     hearingEnabled: false,
     hearingProfile: null,   // { name, L: [{freq, gain}], R: [...] }
+    replayGain: 'off',      // 'off' | 'track' | 'album'
+    rgPreventClip: true,    // ReplayGain で持ち上げてもピークが 0dBFS を超えないようにする
   };
 
   const LOOKAHEAD = 0.08; // 再生開始までの余裕（秒）
@@ -36,6 +38,10 @@
       this.preampDb = 0;
       this.transition = null; // 次の曲への切り替え情報
       this.timer = null;
+      // アプリから渡す関数：ReplayGain の値 { db, peak, source } を返す（無ければ null）
+      this.gainInfo = () => null;
+      // アプリから渡す関数：ReplayGain がオンのとき、再生前に解析を済ませる
+      this.prepare = async () => {};
     }
 
     // ---------- コンテキストと信号経路 ----------
@@ -55,6 +61,10 @@
       this.ctx = ctx;
       this.buffers.clear(); // デコード結果はコンテキストのレートに依存する
       this.input = ctx.createGain(); // 常に 1.0（浮動小数点で 1.0 倍は無変換）
+      // VU メーター用の取り出し口（信号をのぞくだけで、音には手を加えない）
+      this.tapSplit = ctx.createChannelSplitter(2);
+      this.meters = [ctx.createAnalyser(), ctx.createAnalyser()];
+      this.meters.forEach((a, ch) => { a.fftSize = 2048; this.tapSplit.connect(a, ch); });
       this.chain = [];
       this.rebuildChain();
       if (ctx.state === 'suspended') await ctx.resume();
@@ -115,6 +125,7 @@
         last = merge;
       }
       last.connect(ctx.destination);
+      last.connect(this.tapSplit);
       this.emit('signalpath');
     }
 
@@ -158,6 +169,7 @@
         if (this.pre) this.pre.gain.setTargetAtTime(preGain, this.ctx.currentTime, 0.01);
         this.emit('signalpath');
       }
+      if ('replayGain' in patch || 'rgPreventClip' in patch) this.applyRg();
       if ('mode' in patch || 'crossfadeSec' in patch || 'levelMatch' in patch || 'albumGapless' in patch) this.reschedule();
     }
 
@@ -213,6 +225,8 @@
         if (this.ctx.state === 'suspended') await this.ctx.resume();
         const buffer = await this.load(track);
         if (token !== this.token) return;
+        if (this.s.replayGain !== 'off') await this.prepare(track, buffer);
+        if (token !== this.token) return;
         offset = Math.max(0, Math.min(offset, buffer.duration - 0.05));
         const at = this.ctx.currentTime + LOOKAHEAD;
         const player = this.startPlayer(track, index, buffer, at, offset);
@@ -238,10 +252,13 @@
     startPlayer(track, index, buffer, at, offset) {
       const source = this.ctx.createBufferSource();
       source.buffer = buffer;
-      const gain = this.ctx.createGain();
-      source.connect(gain).connect(this.input);
+      const rg = this.ctx.createGain(); // ReplayGain（オフのときは 1.0 倍＝無変換）
+      const gain = this.ctx.createGain(); // クロスフェード用
+      const rgDb = this.rgDb(track);
+      rg.gain.value = 10 ** (rgDb / 20);
+      source.connect(rg).connect(gain).connect(this.input);
       source.start(at, offset);
-      const player = { track, index, buffer, source, gain, startCtx: at - offset, stopAt: null };
+      const player = { track, index, buffer, source, rg, rgDb, gain, startCtx: at - offset, stopAt: null };
       source.onended = () => {
         const i = this.players.indexOf(player);
         if (i >= 0) this.players.splice(i, 1);
@@ -249,6 +266,26 @@
       };
       this.players.push(player);
       return player;
+    }
+
+    // ReplayGain で実際にかける量（dB）。オフ・情報なしは 0
+    rgDb(track) {
+      if (this.s.replayGain === 'off') return 0;
+      const info = this.gainInfo(track, this.s.replayGain);
+      if (!info || !Number.isFinite(info.db)) return 0;
+      let db = info.db;
+      if (this.s.rgPreventClip && info.peak > 0) db = Math.min(db, -20 * Math.log10(info.peak));
+      return Math.round(db * 100) / 100;
+    }
+
+    // 再生中・予約済みの曲に ReplayGain をかけ直す
+    applyRg() {
+      if (!this.ctx) return;
+      for (const p of this.players) {
+        p.rgDb = this.rgDb(p.track);
+        p.rg.gain.setTargetAtTime(10 ** (p.rgDb / 20), this.ctx.currentTime, 0.05);
+      }
+      this.emit('signalpath');
     }
 
     stopPlayers() {
@@ -284,6 +321,8 @@
         this.transition = { type: 'end', at: cur.startCtx + cur.buffer.duration };
         return;
       }
+      if (token !== this.token || this.currentPlayer !== cur) return;
+      if (this.s.replayGain !== 'off') await this.prepare(next, buffer);
       if (token !== this.token || this.currentPlayer !== cur) return;
 
       const now = this.ctx.currentTime;
@@ -479,6 +518,15 @@
       const volPure = Math.abs(this.s.volume - 1) < 1e-6;
       if (!volPure) pure = false;
       stages.push({ label: '音量', value: volPure ? '100%（処理なし）' : `${Math.round(this.s.volume * 100)}%（デジタル音量）`, status: volPure ? 'ok' : 'warn' });
+      const cp = this.currentPlayer;
+      const rgOn = this.s.replayGain !== 'off';
+      const rgNow = cp ? cp.rgDb : 0;
+      if (rgOn && Math.abs(rgNow) >= 0.01) pure = false;
+      stages.push({
+        label: 'ReplayGain',
+        value: !rgOn ? 'オフ' : cp && Math.abs(rgNow) >= 0.01 ? `${this.s.replayGain === 'album' ? 'アルバム' : 'トラック'} ${rgNow > 0 ? '+' : ''}${rgNow.toFixed(1)}dB` : `${this.s.replayGain === 'album' ? 'アルバム' : 'トラック'}（調整なし）`,
+        status: rgOn && Math.abs(rgNow) >= 0.01 ? 'warn' : 'ok',
+      });
       const eqOn = this.eqActive();
       if (eqOn) pure = false;
       stages.push({ label: 'EQ', value: eqOn ? `オン（${this.s.eqBands.filter((b) => b.enabled && Math.abs(b.gain) >= 0.01).length} バンド）` : 'オフ', status: eqOn ? 'warn' : 'ok' });

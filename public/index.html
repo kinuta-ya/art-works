@@ -57,7 +57,10 @@
                     <div class="now-sub"></div>
                 </div>
                 <div class="scrub">
-                    <input type="range" class="seek" min="0" max="1000" value="0" aria-label="再生位置">
+                    <div class="wave-seek">
+                        <canvas class="wave" aria-hidden="true"></canvas>
+                        <input type="range" class="seek" id="seek" min="0" max="1000" value="0" aria-label="再生位置">
+                    </div>
                     <div class="times"><span class="t-pos">0:00</span><span class="t-dur">0:00</span></div>
                 </div>
                 <div class="controls">
@@ -80,6 +83,27 @@
                         <span class="badge" data-pure-badge></span>
                     </div>
                     <ol class="stages"></ol>
+                </div>
+
+                <div class="card vu-card" data-vu-card>
+                    <div class="card-head">
+                        <span>VUメーター</span>
+                        <span class="vu-ref">0VU = −18dBFS</span>
+                    </div>
+                    <canvas class="vu" aria-label="左右の VU メーター"></canvas>
+                </div>
+
+                <div class="card analysis">
+                    <div class="card-head">
+                        <span>音源の分析</span>
+                        <span class="drb" data-now-dr></span>
+                    </div>
+                    <div data-now-analysis><p class="note">再生すると解析します。</p></div>
+                    <figure class="spectro-wrap" data-spectro hidden>
+                        <div class="spectro-axis"><span data-ax-top></span><span data-ax-mid></span><span>0</span></div>
+                        <canvas class="spectro" aria-label="スペクトログラム"></canvas>
+                        <figcaption class="note">スペクトログラム（横が時間、縦が周波数、明るいほど強い）。点線は検出した高域の上限です。</figcaption>
+                    </figure>
                 </div>
 
                 <div class="card">
@@ -107,6 +131,8 @@
         <script src="js/analysis.js"></script>
         <script src="js/demo-tracks.js"></script>
         <script src="js/hearing.js"></script>
+        <script src="js/inspect.js"></script>
+        <script src="js/insights.js"></script>
         <script src="js/engine.js"></script>
         <script src="js/cover-art.js"></script>
         <script src="js/skins.js"></script>

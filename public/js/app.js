@@ -73,15 +73,24 @@
     eqEnabled: !!saved.eqEnabled,
     eqBands: saved.eqBands || null,
     hearingEnabled: !!saved.hearingEnabled,
+    replayGain: saved.replayGain || 'off',
+    rgPreventClip: saved.rgPreventClip !== false,
     hearingProfile: S.profiles.find((p) => p.id === S.activeProfile) || null,
   });
   if (!engine.s.hearingProfile) engine.s.hearingEnabled = false;
+  S.vu = store.get('vu', true);
+
+  // ReplayGain：タグか解析結果から値を出す。オンのときは再生前に解析を済ませる
+  engine.gainInfo = (t, mode) => MP.insights.gainInfo(t, mode);
+  engine.prepare = (t, buffer) => (MP.insights.hasTag(t) || MP.insights.get(t) ? null : MP.insights.ensure(t, { buffer }));
+  MP.insights.setAlbumTracks((t) => { const a = S.albumMap.get(albumKeyOf(t)); return a ? a.tracks : [t]; });
 
   function saveSettings() {
     const s = engine.s;
     store.set('settings', {
       mode: s.mode, crossfadeSec: s.crossfadeSec, levelMatch: s.levelMatch, albumGapless: s.albumGapless,
       followRate: s.followRate, eqEnabled: s.eqEnabled, eqBands: s.eqBands, hearingEnabled: s.hearingEnabled,
+      replayGain: s.replayGain, rgPreventClip: s.rgPreventClip,
     });
   }
 
@@ -300,6 +309,7 @@
     $('#view').scrollTop = 0;
   }
 
+  const drBadge = (dr, label = 'DR', size = '') => `<span class="drb dr-${MP.inspect.drLevel(dr)} ${size}" title="${label}">DR${dr}</span>`;
   const pad3 = (n) => String(n).padStart(3, '0');
   const head = (tag, title, extra = '') => `
     <div class="page-head">
@@ -380,6 +390,10 @@
       const total = a.tracks.reduce((s, t) => s + (t.duration || 0), 0);
       const formats = [...new Set(a.tracks.map(fmtFormat))];
       const cur = engine.queue[engine.index];
+      const res = a.tracks.map((t) => MP.insights.get(t));
+      const done = res.filter(Boolean);
+      const albumDr = done.length === a.tracks.length ? Math.round(done.reduce((x, r) => x + r.dr, 0) / done.length) : null;
+      const warns = a.tracks.map((t, i) => ({ t, r: res[i] })).filter((x) => x.r && x.r.native && x.r.verdict && x.r.verdict.level === 'warn');
       return `
         <button class="back press" data-nav="albums">${icon('back')}ライブラリ</button>
         <div class="album-hero">
@@ -391,10 +405,12 @@
             <div class="meta">
               ${a.year ? `<span>${esc(a.year)}</span>・` : ''}<span>${a.tracks.length} 曲</span>・<span>${Math.round(total / 60)} 分</span>
               ${formats.slice(0, 2).map((f) => `<span class="fmt">${esc(f)}</span>`).join('')}
+              ${albumDr != null ? drBadge(albumDr, 'アルバムの DR') : ''}
             </div>
             <div class="actions">
               <button class="btn press primary" data-action="play-album">${icon('play')}再生</button>
               <button class="btn press" data-action="shuffle-album">${icon('shuffle')}シャッフル</button>
+              ${done.length < a.tracks.length || done.some((r) => !r.native) ? `<button class="btn press" data-action="analyze-album">${icon('spark')}アルバムを解析</button>` : ''}
             </div>
           </div>
         </div>
@@ -406,9 +422,17 @@
                 <div class="title">${esc(t.title)}</div>
                 ${t.artist !== a.artist ? `<div class="sub">${esc(t.artist)}</div>` : ''}
               </span>
-              <span class="dur">${fmtTime(t.duration)}</span>
+              <span class="dur">${res[i] ? drBadge(res[i].dr, 'DR', 'sm') + ' ' : ''}${fmtTime(t.duration)}</span>
             </button></li>`).join('')}
-        </ol>`;
+        </ol>
+        ${done.length ? `
+          <div class="card album-analysis">
+            <div class="card-head"><span>解析結果</span>${albumDr != null ? drBadge(albumDr, 'アルバムの DR') : `<span class="note" style="margin:0">${done.length} / ${a.tracks.length} 曲</span>`}</div>
+            ${warns.length ? warns.map(({ t, r }) => `
+              <div class="verdict warn"><span><strong>${esc(t.title)}</strong>：${esc(r.verdict.text)}</span>${r.verdict.notes.map((n) => `<small>${esc(n)}</small>`).join('')}</div>`).join('')
+              : `<div class="verdict ok"><span>高域の判定で気になる曲はありません${done.some((r) => !r.native) ? '（一部の曲は未判定）' : ''}</span></div>`}
+            <p class="note">DR はダイナミックレンジ（音の強弱の幅）。14 以上は豊か、8〜13 は普通、7 以下は音圧を上げるために強く圧縮された音源です。</p>
+          </div>` : ''}`;
     },
 
     songs() {
@@ -533,6 +557,20 @@
             <input type="checkbox" role="switch" data-setting="levelMatch" ${s.levelMatch ? 'checked' : ''}></label>
           <label class="switch"><span class="label">同じアルバムの連続トラックはギャップレス<small>アルバムの流れを壊さないよう、クロスフェードしません</small></span>
             <input type="checkbox" role="switch" data-setting="albumGapless" ${s.albumGapless ? 'checked' : ''}></label>
+        </div>
+        <h2>ReplayGain</h2>
+        <div class="card">
+          <div class="seg" role="radiogroup" aria-label="ReplayGain" style="grid-template-columns:repeat(3,1fr)">
+            ${[['off', 'オフ'], ['track', 'トラック'], ['album', 'アルバム']].map(([v, l]) => `<button role="radio" aria-checked="${s.replayGain === v}" data-rg="${v}">${l}</button>`).join('')}
+          </div>
+          <p class="note">曲やアルバムごとの音量差を、音量の調整だけでそろえます（音の強弱は圧縮しません）。基準は -18 LUFS。タグに ReplayGain があればそれを使い、無ければ再生前に解析して求めます。オンで調整がかかっている間は「加工中」になります。</p>
+          <label class="switch"><span class="label">音割れを防ぐ<small>持ち上げる場合も、ピークが 0dBFS を超えない量までにします</small></span>
+            <input type="checkbox" role="switch" id="rg-clip" data-setting="rgPreventClip" ${s.rgPreventClip ? 'checked' : ''}></label>
+        </div>
+        <h2>表示</h2>
+        <div class="card">
+          <label class="switch"><span class="label">VU メーターを表示<small>再生画面に左右のアナログ VU メーターを出します（信号をのぞくだけで、音には手を加えません）</small></span>
+            <input type="checkbox" role="switch" id="vu" data-vu-toggle ${S.vu ? 'checked' : ''}></label>
         </div>
         <h2>出力</h2>
         <div class="card">
@@ -799,10 +837,88 @@
     if (!seeking) $('.seek').value = dur ? Math.round(pos / dur * 1000) : 0;
     $('.t-pos').textContent = fmtTime(seeking ? $('.seek').value / 1000 * dur : pos);
     $('.t-dur').textContent = '-' + fmtTime(dur - pos);
+    const cur = engine.queue[engine.index];
+    const full = cur && MP.insights.getFull(cur);
+    const prog = dur ? (seeking ? $('.seek').value / 1000 : pos / dur) : 0;
+    MP.insights.drawWave($('.wave'), full ? full.wave : null, prog);
   }
 
-  function openNow() { nowOpen = true; $('#now').hidden = false; updateNow(); }
-  function closeNow() { nowOpen = false; $('#now').hidden = true; }
+  function openNow() { nowOpen = true; $('#now').hidden = false; updateNow(); renderNowAnalysis(); startVu(); }
+  function closeNow() { nowOpen = false; $('#now').hidden = true; vu.stop(); }
+
+  // ---------- VU メーター ----------
+  const vu = new MP.insights.VUMeter($('.vu'));
+  function startVu() {
+    $('[data-vu-card]').hidden = !S.vu;
+    if (nowOpen && S.vu) vu.start(() => engine.meters || null, () => engine.state === 'playing');
+    else vu.stop();
+  }
+
+  // ---------- 音源の分析（再生画面） ----------
+  function analyzeCurrent() {
+    const t = engine.queue[engine.index];
+    if (!t) return;
+    const p = engine.currentPlayer;
+    const buffer = p && p.track === t ? p.buffer : null;
+    if (!buffer) return;
+    MP.insights.ensure(t, { buffer, full: true }).catch((e) => console.warn('解析できませんでした', e));
+  }
+
+  const fmtDb = (v, unit) => (Number.isFinite(v) ? `${v > 0 ? '+' : ''}${v.toFixed(1)}${unit}` : '—');
+  function renderNowAnalysis() {
+    if (!nowOpen) return;
+    const t = engine.queue[engine.index];
+    const box = $('[data-now-analysis]');
+    const drEl = $('[data-now-dr]');
+    const fig = $('[data-spectro]');
+    if (!t) { box.innerHTML = '<p class="note">再生すると解析します。</p>'; drEl.innerHTML = ''; fig.hidden = true; return; }
+    const r = MP.insights.getFull(t) || MP.insights.get(t);
+    if (!r) { box.innerHTML = '<p class="note">解析中…</p>'; drEl.innerHTML = ''; fig.hidden = true; return; }
+    drEl.outerHTML = `<span class="drb dr-${MP.inspect.drLevel(r.dr)}" data-now-dr title="ダイナミックレンジ">DR${r.dr}</span>`;
+    const rg = engine.s.replayGain !== 'off' ? MP.insights.gainInfo(t, engine.s.replayGain) : null;
+    const p = engine.currentPlayer;
+    box.innerHTML = `
+      <div class="facts">
+        <div class="fact"><span>ラウドネス</span><strong>${Number.isFinite(r.lufs) ? r.lufs.toFixed(1) : '—'}<small> LUFS</small></strong></div>
+        <div class="fact"><span>ピーク</span><strong>${fmtDb(r.peakDb, '')}<small> dBFS</small></strong></div>
+        <div class="fact"><span>高域の上限</span><strong>${(r.cutoff / 1000).toFixed(1)}<small> kHz</small></strong></div>
+        <div class="fact"><span>ReplayGain</span><strong>${rg ? fmtDb(p && p.track === t ? p.rgDb : rg.db, '') + '<small> dB</small>' : 'オフ'}</strong></div>
+      </div>
+      <div class="verdict ${r.verdict.level}"><span>${esc(r.verdict.text)}</span>${r.verdict.notes.map((n) => `<small>${esc(n)}</small>`).join('')}</div>
+      ${rg ? `<p class="note">ReplayGain の値：${esc(rg.source)}</p>` : ''}
+      <p class="note">DR はダイナミックレンジ（音の強弱の幅）。14 以上は豊か、8〜13 は普通、7 以下は強く圧縮された音源です。</p>`;
+    const full = MP.insights.getFull(t);
+    fig.hidden = !full;
+    if (full) {
+      MP.insights.drawSpectrogram($('.spectro'), full.spec, full.native ? full.cutoff : null);
+      $('[data-ax-top]').textContent = `${(full.spec.nyq / 1000).toFixed(1)}k`;
+      $('[data-ax-mid]').textContent = `${(full.spec.nyq / 2000).toFixed(1)}k`;
+    }
+  }
+
+  let albumRefresh = null;
+  MP.insights.events.addEventListener('analyzed', (e) => {
+    const t = e.detail.track;
+    if (t === engine.queue[engine.index]) { renderNowAnalysis(); updateTime(); }
+    if (S.view === 'album' && S.albumKey === albumKeyOf(t)) {
+      clearTimeout(albumRefresh);
+      albumRefresh = setTimeout(() => { const v = $('#view'), y = v.scrollTop; render(); v.scrollTop = y; }, 150);
+    }
+  });
+
+  async function analyzeAlbum() {
+    const a = S.albumMap.get(S.albumKey);
+    if (!a) return;
+    let n = 0;
+    for (const t of a.tracks) {
+      n++;
+      toast(`解析中… ${n} / ${a.tracks.length}　${t.title}`, 0);
+      try { await MP.insights.ensure(t, { needNative: true }); }
+      catch (e) { console.warn(e); toast(`${t.title} を解析できませんでした（${t.codec} はこのブラウザで読めない可能性があります）`, 4000); await new Promise((r) => setTimeout(r, 1200)); }
+    }
+    toast('解析が終わりました');
+    if (engine.s.replayGain === 'album') engine.applyRg();
+  }
 
   // ---------- Media Session（ロック画面・通知の操作） ----------
   function updateMediaSession() {
@@ -826,8 +942,11 @@
   }
 
   // ---------- エンジンのイベント ----------
+  let analyzeTimer = null;
   engine.addEventListener('trackchange', () => {
-    updateMini(); updateNow(); updateMediaSession();
+    updateMini(); updateNow(); updateMediaSession(); renderNowAnalysis();
+    clearTimeout(analyzeTimer);
+    analyzeTimer = setTimeout(analyzeCurrent, 400);
     for (const row of $$('#view .row')) row.classList.remove('playing');
     const cur = engine.queue[engine.index];
     if (cur) {
@@ -841,6 +960,7 @@
     }
   });
   engine.addEventListener('state', () => {
+    if (engine.state === 'playing') { startVu(); clearTimeout(analyzeTimer); analyzeTimer = setTimeout(analyzeCurrent, 400); }
     setPlayIcons();
     if ('mediaSession' in navigator) navigator.mediaSession.playbackState = engine.state === 'playing' ? 'playing' : 'paused';
   });
@@ -864,6 +984,20 @@
     if (d.nav) return go(d.nav);
     if (d.album) return go('album', { albumKey: d.album });
     if (d.genre) return go('genre', { genreName: d.genre });
+    if (d.rg) {
+      engine.update({ replayGain: d.rg });
+      saveSettings();
+      for (const b of $$('[data-rg]')) b.setAttribute('aria-checked', b.dataset.rg === d.rg);
+      // オンにしたら、再生中の曲の解析を済ませてからかけ直す
+      const t = engine.queue[engine.index];
+      if (d.rg !== 'off' && t && !MP.insights.hasTag(t) && !MP.insights.get(t)) {
+        const p = engine.currentPlayer;
+        MP.insights.ensure(t, { buffer: p && p.track === t ? p.buffer : null }).then(() => { engine.applyRg(); engine.reschedule(); });
+      } else {
+        engine.reschedule(); // 予約済みの次の曲も、解析してから予約し直す
+      }
+      return;
+    }
     if (d.skinPick) {
       S.skin = MP.skins.apply(d.skinPick);
       store.set('skin', S.skin);
@@ -909,6 +1043,7 @@
       case 'repeat': return toggleRepeat();
       case 'open-now': return openNow();
       case 'close-now': return closeNow();
+      case 'analyze-album': return analyzeAlbum();
       case 'play-album': case 'shuffle-album': {
         const a = S.albumMap.get(S.albumKey);
         if (d.action === 'shuffle-album' && !S.shuffle) S.shuffle = true;
@@ -1021,6 +1156,12 @@
     if (el.classList.contains('seek')) {
       seeking = false;
       engine.seek(Number(el.value) / 1000 * engine.duration());
+      return;
+    }
+    if ('vuToggle' in d) {
+      S.vu = el.checked;
+      store.set('vu', S.vu);
+      startVu();
       return;
     }
     if ('spinToggle' in d) {

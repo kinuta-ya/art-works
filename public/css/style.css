@@ -478,6 +478,41 @@ input[type="range"] { width: 100%; accent-color: var(--c-main); }
 .queue .row { grid-template-columns: 40px minmax(0, 1fr) auto; padding: 7px 4px; }
 .qart { width: 40px; aspect-ratio: 1; border-radius: 50%; object-fit: cover; border: 5px solid var(--vinyl); }
 
+/* ---------- 波形シークバー ---------- */
+.wave-seek { position: relative; height: 44px; }
+.wave-seek .wave { position: absolute; inset: 0; width: 100%; height: 100%; }
+.wave-seek .seek { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.wave-seek:focus-within { outline: 3px solid var(--c-sub); outline-offset: 3px; border-radius: 4px; }
+
+/* ---------- VU メーター ---------- */
+.vu { display: block; width: 100%; height: 118px; }
+.vu-ref { font: 11px/1 var(--f-mono); color: var(--muted); font-weight: 400; }
+
+/* ---------- 解析 ---------- */
+.drb {
+  display: inline-block; font: 600 12px/1 var(--f-mono); letter-spacing: .04em;
+  padding: 5px 9px; border-radius: var(--r-pill); white-space: nowrap; color: #fff;
+}
+.drb:empty { display: none; }
+.drb.dr-ok { background: #2f8a5b; }
+.drb.dr-mid { background: #c7891a; }
+.drb.dr-bad { background: #c8321e; }
+.drb.sm { font-size: 10px; padding: 3px 6px; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; margin: 4px 0 12px; }
+.fact { display: grid; gap: 2px; }
+.fact span { font: 11px/1.3 var(--f-mono); color: var(--muted); letter-spacing: .04em; }
+.fact strong { font: 600 18px/1.2 var(--f-mono); font-variant-numeric: tabular-nums; }
+.verdict { display: grid; grid-template-columns: 12px minmax(0, 1fr); gap: 8px; align-items: baseline; font-size: 14px; margin: 6px 0; }
+.verdict::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+.verdict.ok::before { background: var(--ok); }
+.verdict.warn::before { background: #c8321e; }
+.verdict small { grid-column: 2; color: var(--muted); font-size: 12px; }
+.spectro-wrap { margin: 12px 0 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 8px; }
+.spectro { width: 100%; height: 150px; display: block; border-radius: 6px; background: #080614; }
+.spectro-axis { display: flex; flex-direction: column; justify-content: space-between; font: 10px/1 var(--f-mono); color: var(--muted); text-align: right; padding: 2px 0; }
+.spectro-wrap figcaption { grid-column: 1 / -1; margin: 0; }
+.album-analysis { margin-top: 18px; }
+
 /* ---------- EQ ---------- */
 .eq-graph { width: 100%; height: 210px; display: block; }
 .bands { display: grid; }

@@ -115,6 +115,8 @@
         case 'GENRE': meta.genre = meta.genre || genreName(val); break;
         case 'REPLAYGAIN_TRACK_GAIN': meta.rgTrack = parseFloat(val); break;
         case 'REPLAYGAIN_ALBUM_GAIN': meta.rgAlbum = parseFloat(val); break;
+        case 'REPLAYGAIN_TRACK_PEAK': meta.rgTrackPeak = parseFloat(val); break;
+        case 'REPLAYGAIN_ALBUM_PEAK': meta.rgAlbumPeak = parseFloat(val); break;
       }
     }
   }
@@ -174,6 +176,17 @@
         case 'TPOS': meta.disc = parseNum(text()); break;
         case 'TDRC': case 'TYER': meta.year = text().slice(0, 4); break;
         case 'TCON': meta.genre = genreName(text()); break;
+        case 'TXXX': { // ユーザー定義テキスト（ReplayGain はここに入る）
+          const descEnd = findTerminator(data, 1, enc);
+          const desc = decodeText(enc, data.subarray(1, descEnd)).toUpperCase();
+          const val = parseFloat(decodeText(enc, data.subarray(descEnd + (enc === 1 || enc === 2 ? 2 : 1))));
+          if (!Number.isFinite(val)) break;
+          if (desc === 'REPLAYGAIN_TRACK_GAIN') meta.rgTrack = val;
+          else if (desc === 'REPLAYGAIN_ALBUM_GAIN') meta.rgAlbum = val;
+          else if (desc === 'REPLAYGAIN_TRACK_PEAK') meta.rgTrackPeak = val;
+          else if (desc === 'REPLAYGAIN_ALBUM_PEAK') meta.rgAlbumPeak = val;
+          break;
+        }
         case 'APIC': {
           if (meta.picture) break;
           let p = 1;
