@@ -543,3 +543,6 @@ textarea {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+/* レコードの回転は設定で決める（OS の「動きを減らす」より優先） */
+:root[data-spin="on"] .is-playing .disc { animation: spin 1.8s linear infinite !important; animation-play-state: running !important; }
+:root[data-spin="off"] .disc { animation: none !important; }

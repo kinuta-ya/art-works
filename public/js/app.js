@@ -59,6 +59,8 @@
   };
 
   S.skin = MP.skins.apply(store.get('skin', 'midcentury'));
+  S.spin = store.get('spin', true);
+  document.documentElement.dataset.spin = S.spin ? 'on' : 'off';
 
   const saved = store.get('settings', {});
   const engine = new MP.Engine({
@@ -505,6 +507,10 @@
               <strong>${esc(k.name)}</strong>
               <small>${esc(k.desc)}</small>
             </button>`).join('')}
+        </div>
+        <div class="card">
+          <label class="switch"><span class="label">レコードを回す<small>再生中にジャケットのレコードを回します。端末の「動きを減らす」設定がオンでも回ります</small></span>
+            <input type="checkbox" role="switch" id="spin" data-spin-toggle ${S.spin ? 'checked' : ''}></label>
         </div>
         <h2>ノンストップモード</h2>
         <div class="mode-cards" role="radiogroup">
@@ -1015,6 +1021,12 @@
     if (el.classList.contains('seek')) {
       seeking = false;
       engine.seek(Number(el.value) / 1000 * engine.duration());
+      return;
+    }
+    if ('spinToggle' in d) {
+      S.spin = el.checked;
+      store.set('spin', S.spin);
+      document.documentElement.dataset.spin = S.spin ? 'on' : 'off';
       return;
     }
     if ('eqToggle' in d) { engine.update({ eqEnabled: el.checked }); saveSettings(); return; }
