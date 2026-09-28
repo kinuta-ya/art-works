@@ -19,13 +19,14 @@
       fonts: 'family=Noto+Sans+JP:wght@300;400;700&family=Noto+Sans+Mono' },
     { id: 'glass', name: 'グラスモーフィズム', desc: '色の光の上に重なる、すりガラスの面', swatch: ['#241a4d', '#ff7eb6', '#6fd8ff', '#b18cff'], theme: '#241a4d',
       fonts: 'family=Jost:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@400;700&family=DM+Mono' },
-    { id: 'neumorph', name: 'ニューモーフィズム', desc: '同じ色の面を、光と影でやわらかく押し出す', swatch: ['#e4e8ef', '#5c6cf2', '#38b3a6', '#c3c9d4'], theme: '#e4e8ef',
+    { id: 'neumorph', name: 'ニューモーフィズム', desc: '同じ色の面を、光と影でやわらかく押し出す（既定）', swatch: ['#e4e8ef', '#5c6cf2', '#38b3a6', '#c3c9d4'], theme: '#e4e8ef',
       fonts: 'family=M+PLUS+Rounded+1c:wght@400;500;700&family=DM+Mono' },
     { id: 'vaporwave', name: 'ヴェイパーウェイブ', desc: '夕焼けの太陽とグリッド、ピンクとシアン', swatch: ['#1a0e36', '#ff5ec8', '#29e6ff', '#fff27a'], theme: '#1a0e36',
       fonts: 'family=DotGothic16&family=IBM+Plex+Mono' },
   ];
 
-  const loaded = new Set(['midcentury']); // 既定テーマのフォントは index.html で読み込み済み
+  const DEFAULT = 'neumorph'; // 既定のテーマ
+  const loaded = new Set([DEFAULT]); // 既定テーマのフォントは index.html で読み込み済み
 
   function loadFonts(skin) {
     if (loaded.has(skin.id)) return;
@@ -37,7 +38,7 @@
   }
 
   function apply(id) {
-    const skin = LIST.find((s) => s.id === id) || LIST[0];
+    const skin = LIST.find((s) => s.id === id) || LIST.find((s) => s.id === DEFAULT);
     loadFonts(skin);
     document.documentElement.dataset.skin = skin.id;
     const meta = document.querySelector('meta[name="theme-color"]');
@@ -45,5 +46,5 @@
     return skin.id;
   }
 
-  MP.skins = { LIST, apply };
+  MP.skins = { LIST, apply, DEFAULT };
 })(window.MP = window.MP || {});

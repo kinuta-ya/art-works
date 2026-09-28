@@ -122,7 +122,7 @@
   S.listenDb = store.get('listenDb', 80);
   S.safetyNow = null;
 
-  S.skin = MP.skins.apply(S.tools.theme ? store.get('skin', 'midcentury') : 'midcentury');
+  S.skin = MP.skins.apply(S.tools.theme ? store.get('skin', MP.skins.DEFAULT) : MP.skins.DEFAULT);
   S.spin = store.get('spin', true);
   document.documentElement.dataset.spin = S.spin ? 'on' : 'off';
 
@@ -171,7 +171,7 @@
       crossfeed: t.crossfeed && !b.crossfeed ? { feedDb: CROSSFEED[S.cfLevel].feedDb, fc: CROSSFEED[S.cfLevel].fc } : null,
     });
     updateDeck();
-    S.skin = MP.skins.apply(t.theme ? store.get('skin', 'midcentury') : 'midcentury');
+    S.skin = MP.skins.apply(t.theme ? store.get('skin', MP.skins.DEFAULT) : MP.skins.DEFAULT);
     if (engine.s.replayGain !== rgBefore) refreshRg();
     updateNow();
   }
