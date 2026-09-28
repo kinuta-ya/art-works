@@ -7,25 +7,6 @@
   const SR = 44100;
   const NOTE = (m) => 440 * 2 ** ((m - 69) / 12);
 
-  // ミッドセンチュリーのレコードジャケット風：ベタ塗りの地に円とアーチ
-  function makeArt(bg, c1, c2, label) {
-    const c = document.createElement('canvas');
-    c.width = c.height = 480;
-    const g = c.getContext('2d');
-    g.fillStyle = bg;
-    g.fillRect(0, 0, 480, 480);
-    g.fillStyle = c1;
-    g.beginPath(); g.arc(330, 170, 120, 0, Math.PI * 2); g.fill();
-    g.fillStyle = c2;
-    g.beginPath(); g.moveTo(40, 480); g.lineTo(40, 330); g.arc(150, 330, 110, Math.PI, 0); g.lineTo(260, 480); g.fill();
-    g.strokeStyle = '#2b2118'; g.lineWidth = 6;
-    for (let i = 0; i < 5; i++) { g.beginPath(); g.moveTo(290, 330 + i * 22); g.lineTo(440, 330 + i * 22); g.stroke(); }
-    g.fillStyle = '#fbf5e8';
-    g.font = '600 46px Jost, system-ui, sans-serif';
-    g.fillText(label, 36, 80);
-    return c.toDataURL('image/png');
-  }
-
   // 位相が連続した和音パッド（コード切り替えはグライド）
   function renderPad(seconds) {
     const len = Math.round(seconds * SR);
@@ -106,7 +87,6 @@
 
     // --- ギャップレス・テスト ---
     {
-      const art = makeArt('#1e7471', '#e1a42a', '#d45f2a', 'Gapless');
       const total = 45, parts = 3;
       let pad = null;
       const getPad = () => (pad = pad || renderPad(total));
@@ -120,12 +100,11 @@
           makeBuffer: () => toBuffer(getPad(), from, to),
         });
       }
-      albums.push({ album: 'ギャップレス・テスト', artist: 'デモ音源', year: '2026', genre: 'Ambient', art, tracks });
+      albums.push({ album: 'ギャップレス・テスト', artist: 'デモ音源', year: '2026', genre: 'Classical', tracks });
     }
 
     // --- クロスフェード・テスト ---
     {
-      const art = makeArt('#d45f2a', '#f2e8d3', '#1e7471', 'Crossfade');
       const defs = [
         { title: 'Amber Tube', bpm: 96, root: 57, pattern: [0, 7, 12, 16, 12, 7], seed: 1 },
         { title: 'Night Walk', bpm: 120, root: 62, pattern: [0, 3, 7, 10, 15, 10, 7, 3], seed: 2 },
@@ -136,7 +115,7 @@
         makeBuffer: () => toBuffer(renderArp(24, d.bpm, d.root, d.pattern, d.seed)),
       }));
       // 別々の曲を集めたミックス扱い（同じアルバムでもクロスフェードする）
-      albums.push({ album: 'クロスフェード・テスト', artist: 'デモ音源', year: '2026', art, tracks, mix: true, genre: 'Synthwave' });
+      albums.push({ album: 'クロスフェード・テスト', artist: 'デモ音源', year: '2026', tracks, mix: true, genre: 'Jazz' });
     }
 
     const out = [];
@@ -147,7 +126,7 @@
           track: t.track, disc: 1, year: a.year, genre: a.genre,
           sampleRate: SR, bitDepth: 32, channels: 2, duration: t.duration,
           codec: '合成音', lossless: true, demo: true,
-          artUrl: a.art, makeBuffer: t.makeBuffer,
+          makeBuffer: t.makeBuffer,
           path: `demo/${a.album}/${t.track}`, mix: !!a.mix,
         });
       }

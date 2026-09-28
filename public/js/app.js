@@ -130,6 +130,29 @@
     rebuildAlbums();
   }
 
+  // ジャケットの無いアルバムに、ジャンルの作風で代わりのジャケットを作る
+  const coverCache = new Map(); // アルバムのキー＋ジャンル → Promise<URL>
+  let coverRefresh = null;
+  function requestCover(a) {
+    const key = a.key + '\u0000' + a.genre;
+    if (!coverCache.has(key)) coverCache.set(key, MP.coverArt.make(a));
+    coverCache.get(key).then((url) => {
+      const cur = S.albumMap.get(a.key);
+      if (!cur || cur.genre !== a.genre || (cur.artUrl && !cur.artGenerated)) return;
+      cur.artUrl = url;
+      cur.artGenerated = true;
+      for (const t of cur.tracks) if (!t.artUrl || t.artGenerated) { t.artUrl = url; t.artGenerated = true; }
+      // 描き直しはまとめて 1 回
+      clearTimeout(coverRefresh);
+      coverRefresh = setTimeout(() => {
+        const v = $('#view'), y = v.scrollTop;
+        render();
+        v.scrollTop = y;
+        updateMini(); updateNow(); updateMediaSession();
+      }, 60);
+    }).catch((e) => console.warn('ジャケットを作れませんでした', e));
+  }
+
   function rebuildAlbums() {
     const map = new Map();
     for (const t of S.tracks) {
@@ -137,12 +160,12 @@
       if (!map.has(key)) map.set(key, { key, title: t.album, artist: t.albumArtist || t.artist, year: t.year, tracks: [], artUrl: null });
       const a = map.get(key);
       a.tracks.push(t);
-      if (!a.artUrl && t.artUrl) a.artUrl = t.artUrl;
+      if (!a.artUrl && t.artUrl && !t.artGenerated) a.artUrl = t.artUrl;
       if (!a.year && t.year) a.year = t.year;
     }
     for (const a of map.values()) {
       a.tracks.sort((x, y) => (x.disc || 1) - (y.disc || 1) || (x.track ?? 999) - (y.track ?? 999) || x.path.localeCompare(y.path));
-      for (const t of a.tracks) if (!t.artUrl) t.artUrl = a.artUrl;
+      if (a.artUrl) for (const t of a.tracks) if (!t.artUrl || t.artGenerated) { t.artUrl = a.artUrl; t.artGenerated = false; }
     }
     S.albumMap = map;
     S.albums = [...map.values()].sort((a, b) => a.artist.localeCompare(b.artist, 'ja') || a.title.localeCompare(b.title, 'ja'));
@@ -153,6 +176,7 @@
       if (!gmap.has(a.genre)) gmap.set(a.genre, { name: a.genre, albums: [] });
       gmap.get(a.genre).albums.push(a);
     }
+    for (const a of S.albums) if (!a.artUrl) requestCover(a);
     S.genres = [...gmap.values()].sort((a, b) => (a.name === '不明なジャンル') - (b.name === '不明なジャンル') || a.name.localeCompare(b.name, 'ja'));
     S.tracks.sort((a, b) => {
       const A = S.albumMap.get(albumKeyOf(a)), B = S.albumMap.get(albumKeyOf(b));
