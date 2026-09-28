@@ -121,12 +121,14 @@
     // --- ジャンル別ジャケットの見本（短い曲 2 曲ずつ） ---
     const samples = [
       { album: 'Loud Machines', artist: 'The Amps', genre: 'Rock', bpm: 140, root: 52, pattern: [0, 7, 12, 7, 10, 7] },
-      { album: 'Night Drive', artist: 'Grid Unit', genre: 'Synthwave', bpm: 118, root: 57, pattern: [0, 12, 7, 12, 3, 12, 7, 12] },
+      { album: 'Night Drive', artist: 'Grid Unit', genre: 'Synthwave', bpm: 118, root: 57, pattern: [0, 12, 7, 12, 3, 12, 7, 12],
+        lyrics: '[00:01.20]夜の高速　ライトが流れる\n[00:04.00]グリッドの上を　どこまでも\n[00:06.80]ラジオから　知らない歌\n[00:09.60]窓を少しだけ　開けてみる\n[00:12.40]（間奏）' },
       { album: 'Borough Tales', artist: 'MC Brick', genre: 'Hip-Hop', bpm: 90, root: 50, pattern: [0, 3, 0, 5, 7, 5] },
     ];
     samples.forEach((sm, k) => {
       const tracks = [1, 2].map((n) => ({
         title: `${sm.album} ${n === 1 ? 'I' : 'II'}`, track: n, duration: 16,
+        lyricsText: sm.lyrics && n === 1 ? sm.lyrics : null,
         makeBuffer: () => toBuffer(renderArp(16, sm.bpm, sm.root + (n - 1) * 2, sm.pattern, 10 + k * 2 + n)),
       }));
       albums.push({ album: sm.album, artist: sm.artist, year: '2026', genre: sm.genre, tracks, mix: true });
@@ -140,7 +142,7 @@
           track: t.track, disc: 1, year: a.year, genre: a.genre,
           sampleRate: SR, bitDepth: 32, channels: 2, duration: t.duration,
           codec: '合成音', lossless: true, demo: true,
-          makeBuffer: t.makeBuffer,
+          makeBuffer: t.makeBuffer, lyricsText: t.lyricsText || null,
           path: `demo/${a.album}/${t.track}`, mix: !!a.mix,
         });
       }

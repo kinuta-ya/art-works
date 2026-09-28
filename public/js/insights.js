@@ -37,6 +37,11 @@
     const job = chain.then(async () => {
       let buffer = opts.buffer;
       if (!buffer || (opts.needNative && buffer.sampleRate !== track.sampleRate && !track.demo)) buffer = await MP.inspect.decodeNative(track);
+      // CUE の曲は、ファイルの中の自分の区間だけを解析する
+      if (track.segStart != null || track.segEnd != null) {
+        const { s: a, e } = MP.engineUtil.segOf(track, buffer);
+        buffer = MP.engineUtil.slice(buffer, a, e);
+      }
       const native = track.demo || !track.sampleRate || buffer.sampleRate === track.sampleRate;
       const r = await MP.inspect.analyze(track, buffer, native);
       r.native = native;

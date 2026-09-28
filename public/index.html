@@ -93,6 +93,11 @@
                     <ol class="stages"></ol>
                 </div>
 
+                <div class="card rt-card" aria-label="リアルタイムのスペクトラム">
+                    <div class="card-head"><span>スペクトラム</span><span class="vu-ref">30Hz – 20kHz</span></div>
+                    <canvas class="rt"></canvas>
+                </div>
+
                 <div class="card vu-card" data-vu-card>
                     <div class="card-head">
                         <span>VUメーター</span>
@@ -131,7 +136,7 @@
         </section>
 
         <input type="file" id="pick-dir" webkitdirectory multiple hidden>
-        <input type="file" id="pick-files" multiple hidden accept="audio/*,.flac,.m4a,.alac,.wav,.aif,.aiff,.mp3,.ogg,.opus,.dsf,.dff,.jpg,.jpeg,.png">
+        <input type="file" id="pick-files" multiple hidden accept="audio/*,.flac,.m4a,.alac,.wav,.aif,.aiff,.mp3,.ogg,.opus,.dsf,.dff,.jpg,.jpeg,.png,.cue,.lrc">
         <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
         <script src="js/metadata.js"></script>
@@ -143,6 +148,7 @@
         <script src="js/insights.js"></script>
         <script src="js/engine.js"></script>
         <script src="js/gear.js"></script>
+        <script src="js/extras.js"></script>
         <script src="js/cover-art.js"></script>
         <script src="js/skins.js"></script>
         <script src="js/app.js"></script>

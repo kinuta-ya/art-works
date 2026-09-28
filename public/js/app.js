@@ -27,6 +27,12 @@
     palette: '<circle cx="12" cy="12" r="9"/><circle cx="8" cy="10" r="1.3"/><circle cx="12" cy="7.5" r="1.3"/><circle cx="16" cy="10" r="1.3"/><path d="M12 21a2.5 2.5 0 0 1 0-5h2a3 3 0 0 0 3-3"/>',
     loop: '<path d="M4 12a6 6 0 0 1 6-6h8M15 3l3 3-3 3M20 12a6 6 0 0 1-6 6H6M9 21l-3-3 3-3"/>',
     knob: '<circle cx="12" cy="13" r="7"/><path d="M12 13V8M5 5l1.5 1.5M19 5l-1.5 1.5M12 3v1"/>',
+    lyrics: '<path d="M4 6h16M4 10h12M4 14h16M4 18h9"/>',
+    abx: '<path d="M4 18 8 6l4 12M5.5 14h5M14 6h3.5a3 3 0 0 1 0 6H14zM14 12h4a3 3 0 0 1 0 6h-4z"/>',
+    crossfeed: '<path d="M7 5v14M17 5v14M7 9l10 6M17 9 7 15"/>',
+    moon: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',
+    list: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1.2"/><circle cx="4.5" cy="12" r="1.2"/><circle cx="4.5" cy="18" r="1.2"/>',
+    deck: '<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="8" cy="12" r="3"/><path d="M14 10h5M14 14h5"/>',
     spark: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8"/>',
   };
   const icon = (name) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
@@ -51,7 +57,19 @@
     { id: 'gear', name: '機材プロファイル', desc: '端子・出力モード・ゲインとイヤホンの組み合わせ', icon: 'gear' },
     { id: 'gaincalc', name: 'ゲインの目安', desc: 'イヤホンに合うゲインと、ノイズの聞こえやすさ', icon: 'gauge', needs: 'gear' },
     { id: 'safety', name: '聴覚保護メーター', desc: '耳に届く音の大きさの推定と、1 週間に聴いた量', icon: 'shield', needs: 'gear' },
+    { id: 'lyrics', name: '同期歌詞', desc: 'LRC の歌詞を再生に合わせて表示', icon: 'lyrics' },
+    { id: 'abx', name: '聴き比べ', desc: '区間リピートと、音量をそろえたブラインドテスト', icon: 'abx' },
+    { id: 'crossfeed', name: 'クロスフィード', desc: 'ヘッドホンで左右が分かれすぎる録音を自然にする', icon: 'crossfeed', audio: true },
+    { id: 'sleep', name: 'スリープタイマー', desc: '時間、またはこの曲の終わりで止める', icon: 'moon' },
+    { id: 'smart', name: 'スマートプレイリスト', desc: 'ジャンル・DR・再生回数などの条件で自動的に作るリスト', icon: 'list' },
+    { id: 'landscape', name: '横向き表示', desc: '横にすると VU メーターとスペクトラムが並ぶ、オーディオ機器風の再生画面', icon: 'deck' },
   ];
+  // クロスフィードの強さ（bs2b の代表的な設定に近い値）
+  const CROSSFEED = {
+    low: { name: '弱', feedDb: -9.5, fc: 650 },
+    mid: { name: '中', feedDb: -6, fc: 700 },
+    high: { name: '強', feedDb: -4.5, fc: 700 },
+  };
 
   // ---------- 保存（localStorage は使えないこともある） ----------
   const store = {
@@ -85,7 +103,16 @@
   if (saved.hearingEnabled) toolDefaults.hearing = true;
   if (saved.replayGain && saved.replayGain !== 'off') toolDefaults.rg = true;
   S.tools = { ...toolDefaults, ...store.get('tools', {}) };
-  S.bypass = { eq: false, hearing: false, rg: false }; // 一時的にオフ（保存しない）
+  S.bypass = { eq: false, hearing: false, rg: false, crossfeed: false }; // 一時的にオフ（保存しない）
+  S.cfLevel = store.get('cfLevel', 'mid');
+  S.cue = store.get('cue', true);          // CUE シート対応
+  S.resume = store.get('resume', true);    // 再生位置の記憶
+  S.ab = { a: null, b: null };             // 区間リピートの A・B 点
+  S.abx = null;                            // ブラインドテスト
+  S.sleep = null;                          // スリープタイマー
+  S.smart = store.get('smart', MP.extras.PRESETS.map((p) => ({ ...p })));
+  S.smartEdit = null;
+  S.deckForce = false;                     // 縦向きでも横向き表示を試す
   S.rgMode = store.get('rgMode', saved.replayGain && saved.replayGain !== 'off' ? saved.replayGain : 'track');
   S.nsMode = store.get('nsMode', saved.mode || 'gapless');
   S.gears = store.get('gears', []);
@@ -102,6 +129,7 @@
   const engine = new MP.Engine({
     mode: S.tools.nonstop ? S.nsMode : 'gapless',
     crossfadeSec: saved.crossfadeSec || 6,
+    crossfeed: S.tools.crossfeed ? { feedDb: CROSSFEED[S.cfLevel].feedDb, fc: CROSSFEED[S.cfLevel].fc } : null,
     levelMatch: saved.levelMatch !== false,
     albumGapless: saved.albumGapless !== false,
     followRate: saved.followRate !== false,
@@ -140,7 +168,9 @@
       hearingEnabled: !!t.hearing && !!prof && !b.hearing,
       replayGain: t.rg && !b.rg ? S.rgMode : 'off',
       mode: t.nonstop ? S.nsMode : 'gapless',
+      crossfeed: t.crossfeed && !b.crossfeed ? { feedDb: CROSSFEED[S.cfLevel].feedDb, fc: CROSSFEED[S.cfLevel].fc } : null,
     });
+    updateDeck();
     S.skin = MP.skins.apply(t.theme ? store.get('skin', 'midcentury') : 'midcentury');
     if (engine.s.replayGain !== rgBefore) refreshRg();
     updateNow();
@@ -268,6 +298,12 @@
   async function importFiles(fileList) {
     const files = [...fileList];
     const audio = files.filter((f) => MP.metadata.isAudio(f.name));
+    const pathOf = (f) => f.webkitRelativePath || f.name;
+    const dirOf = (f) => pathOf(f).split('/').slice(0, -1).join('/');
+    const baseOf = (name) => name.replace(/\.[^.]+$/, '').toLowerCase();
+    // 同じフォルダー・同じ名前の .lrc を歌詞として結び付ける
+    const lrcs = new Map(files.filter((f) => /\.lrc$/i.test(f.name)).map((f) => [dirOf(f) + '/' + baseOf(f.name), f]));
+    const cues = S.cue ? files.filter((f) => /\.cue$/i.test(f.name)) : [];
     if (!audio.length) { toast('音楽ファイルが見つかりませんでした'); return; }
     // フォルダー内のジャケット画像（cover.jpg / folder.jpg など）
     const covers = new Map();
@@ -295,6 +331,7 @@
         const f = queue.shift();
         const meta = await MP.metadata.parse(f);
         meta.file = f;
+        meta.lrcFile = lrcs.get(dirOf(f) + '/' + baseOf(f.name)) || null;
         meta.artUrl = meta.picture ? URL.createObjectURL(meta.picture) : coverFor(meta.dir);
         delete meta.picture;
         out.push(meta);
@@ -303,15 +340,180 @@
       }
     };
     await Promise.all(Array.from({ length: 6 }, worker));
+    // CUE シート：1 つのファイルに入ったアルバムを曲ごとに分ける
+    let cueCount = 0;
+    for (const cf of cues) {
+      try {
+        const cue = MP.extras.parseCue(await MP.extras.readText(cf));
+        const dir = dirOf(cf);
+        for (let i = out.length - 1; i >= 0; i--) {
+          const m = out[i];
+          if (m.dir !== dir || m.segStart != null) continue;
+          const list = MP.extras.cueTracks(cue, cf, m);
+          if (list) { out.splice(i, 1, ...list); cueCount++; }
+        }
+      } catch (e) { console.warn('CUE シートを読めませんでした', cf.name, e); }
+    }
     addTracks(out);
-    toast(`${out.length} 曲を追加しました`);
+    toast(`${out.length} 曲を追加しました${cueCount ? `（CUE シート ${cueCount} 件を曲ごとに分けました）` : ''}`);
     render();
+    offerResume();
   }
 
   function addDemo() {
     addTracks(MP.demoTracks.create());
     toast('デモアルバムを 5 枚追加しました');
     render();
+    offerResume();
+  }
+
+  // ---------- 再生位置の記憶 ----------
+  let resumeTimer = null;
+  function saveResume() {
+    if (!S.resume) return;
+    const t = engine.queue[engine.index];
+    if (!t) return;
+    store.set('lastPlay', { path: t.path, pos: Math.round(engine.position() * 10) / 10, queue: engine.queue.map((x) => x.path).slice(0, 500) });
+  }
+  function offerResume() {
+    if (!S.resume || engine.queue.length) return;
+    const last = store.get('lastPlay', null);
+    if (!last) return;
+    const byPath = new Map(S.tracks.map((t) => [t.path, t]));
+    const queue = (last.queue || []).map((p) => byPath.get(p)).filter(Boolean);
+    const i = queue.findIndex((t) => t.path === last.path);
+    if (i < 0) return;
+    S.baseQueue = queue.slice();
+    engine.play(queue, i, last.pos || 0, { paused: true }).then(() => {
+      toast(`前回の続き：${queue[i].title}（${fmtTime(last.pos || 0)}）。再生ボタンで再開します`, 5000);
+    });
+  }
+
+  // ---------- 同期歌詞 ----------
+  const lyricsCache = new Map();
+  function lyricsOf(t) {
+    if (!t) return Promise.resolve(null);
+    if (lyricsCache.has(t.path)) return lyricsCache.get(t.path);
+    const p = (async () => {
+      if (t.lrcFile) return MP.extras.parseLrc(await MP.extras.readText(t.lrcFile));
+      if (t.lyricsText) return MP.extras.parseLrc(t.lyricsText);
+      return null;
+    })().catch(() => null);
+    lyricsCache.set(t.path, p);
+    return p;
+  }
+  function lyricsHtml(lyr) {
+    if (!lyr) return '<p class="note lyrics-empty">この曲の歌詞はありません。LRC ファイルを読み込むか、音楽と同じフォルダーに同じ名前の .lrc を置いてください。</p>';
+    return lyr.lines.map((l, i) => `<p data-li="${i}">${esc(l.text) || '♪'}</p>`).join('');
+  }
+  async function fillLyrics() {
+    const t = engine.queue[engine.index];
+    const boxes = $$('[data-lyrics]');
+    if (!boxes.length) return;
+    const lyr = await lyricsOf(t);
+    for (const b of $$('[data-lyrics]')) { b.innerHTML = t ? lyricsHtml(lyr) : '<p class="note">再生中の曲の歌詞を表示します。</p>'; b.dataset.cur = '-1'; b.classList.toggle('synced', !!(lyr && lyr.synced)); }
+    updateLyrics();
+  }
+  function updateLyrics() {
+    const boxes = $$('[data-lyrics]');
+    if (!boxes.length) return;
+    const t = engine.queue[engine.index];
+    lyricsOf(t).then((lyr) => {
+      const i = MP.extras.lineAt(lyr, engine.position());
+      for (const b of boxes) {
+        if (String(i) === b.dataset.cur) continue;
+        b.dataset.cur = String(i);
+        for (const el of b.querySelectorAll('[data-li]')) {
+          const k = Number(el.dataset.li);
+          el.classList.toggle('on', k === i);
+          el.classList.toggle('past', k < i);
+        }
+        const on = b.querySelector('.on');
+        if (on) b.scrollTo({ top: on.offsetTop - b.clientHeight / 2 + on.clientHeight / 2, behavior: 'smooth' });
+      }
+    });
+  }
+
+  // ---------- 再生回数（30 秒か半分を聴いたら 1 回） ----------
+  let heard = { id: null, sec: 0, counted: false, last: 0 };
+  function trackStats() {
+    const t = engine.queue[engine.index];
+    if (!t || engine.state !== 'playing') { heard.last = 0; return; }
+    const now = performance.now();
+    if (heard.id !== t.id) heard = { id: t.id, sec: 0, counted: false, last: now };
+    heard.sec += heard.last ? (now - heard.last) / 1000 : 0;
+    heard.last = now;
+    const need = Math.min(30, (engine.duration() || 60) / 2);
+    if (!heard.counted && heard.sec >= need) { heard.counted = true; MP.extras.bump(t); }
+  }
+
+  // ---------- スリープタイマー ----------
+  function setSleep(v) {
+    if (v === 'off') { S.sleep = null; engine.setStopAfterCurrent(false); toast('スリープタイマーを解除しました'); }
+    else if (v === 'track') { S.sleep = { afterTrack: true }; engine.setStopAfterCurrent(true); toast('この曲が終わったら止めます'); }
+    else { S.sleep = { until: Date.now() + Number(v) * 60000, fade: 20 }; engine.setStopAfterCurrent(false); toast(`${v} 分後に止めます（最後の 20 秒で音を小さくします）`); }
+    updateSleepViews();
+  }
+  function sleepText() {
+    if (!S.sleep) return 'オフ';
+    if (S.sleep.afterTrack) return 'この曲が終わったら止めます';
+    const left = Math.max(0, S.sleep.until - Date.now());
+    return `あと ${Math.floor(left / 60000)}:${String(Math.floor(left / 1000) % 60).padStart(2, '0')} で止めます`;
+  }
+  function updateSleepViews() { for (const el of $$('[data-sleep-left]')) el.textContent = sleepText(); }
+  setInterval(() => {
+    const sl = S.sleep;
+    if (sl && sl.until) {
+      const left = sl.until - Date.now();
+      if (left <= 0 && engine.state !== 'playing') { S.sleep = null; }
+      else if (left <= sl.fade * 1000 && !sl.fading && engine.state === 'playing') {
+        sl.fading = true;
+        engine.fadeOutAndStop(Math.max(1, left / 1000)).then(() => { S.sleep = null; toast('スリープタイマーで止めました'); updateSleepViews(); if (S.view === 'tool') render(); });
+      }
+    }
+    updateSleepViews();
+  }, 1000);
+
+  // ---------- 聴き比べ：ブラインドテスト ----------
+  const ABX_TARGETS = ['eq', 'hearing', 'crossfeed'];
+  function abxTargets() { return ABX_TARGETS.filter((id) => S.tools[id] && (id !== 'hearing' || S.profiles.some((p) => p.id === S.activeProfile))); }
+  function startAbx(target, n, match) {
+    // オンとオフの音量差（プリアンプとクロスフィードの補正分）を測って、オフ側をそろえる
+    const vol = engine.s.volume;
+    S.bypass[target] = false; applyTools();
+    let onDb = engine.preampDb;
+    if (target === 'crossfeed' && engine.s.crossfeed) onDb += -20 * Math.log10(1 + 10 ** (engine.s.crossfeed.feedDb / 20));
+    S.bypass[target] = true; applyTools();
+    const offDb = engine.preampDb;
+    S.abx = { target, n, match, vol, matchGain: 10 ** ((onDb - offDb) / 20), trial: 1, correct: 0, x: Math.random() < 0.5, heard: null, log: [] };
+    abxListen('X');
+  }
+  function abxListen(which) {
+    const a = S.abx;
+    if (!a) return;
+    const on = which === 'B' ? true : which === 'A' ? false : a.x;
+    a.heard = which;
+    S.bypass[a.target] = !on;
+    engine.update({ volume: a.match && !on ? a.vol * a.matchGain : a.vol });
+    applyTools();
+  }
+  function abxAnswer(isB) {
+    const a = S.abx;
+    const ok = isB === a.x;
+    if (ok) a.correct++;
+    a.log.push(ok);
+    if (a.trial >= a.n) { a.finished = true; endAbx(false); return; }
+    a.trial++;
+    a.x = Math.random() < 0.5;
+    abxListen('X');
+  }
+  function endAbx(clear = true) {
+    const a = S.abx;
+    if (!a) return;
+    S.bypass[a.target] = false;
+    engine.update({ volume: a.vol });
+    applyTools();
+    if (clear) S.abx = null;
   }
 
   // ---------- 再生 ----------
@@ -526,6 +728,11 @@
         <div class="card">
           ${TOOLS.map((t) => sw(`tool-${t.id}`, t.name + (t.audio ? ' <span class="fmt">音を変える</span>' : ''), esc(t.desc) + (t.needs ? `（${esc(TOOLS.find((x) => x.id === t.needs).name)}を使います）` : ''), S.tools[t.id], `data-tool-toggle="${t.id}"`)).join('')}
         </div>
+        <h2>ライブラリ</h2>
+        <div class="card">
+          ${sw('cue', 'CUE シートに対応する', '1 つのファイルに入ったアルバムを、同じフォルダーの .cue ファイルに従って曲ごとに分けます（次に読み込むときから）', S.cue, 'data-pref="cue"')}
+          ${sw('resume', '再生位置を記憶する', '前回聴いていた曲と位置を覚えておき、ライブラリを読み込んだときに続きから再開できるようにします', S.resume, 'data-pref="resume"')}
+        </div>
         <h2>再生</h2>
         <div class="card">
           ${sw('levelMatch', '音量差をなめらかにする', 'スマートクロスフェード時、次の曲の音量を前の曲に合わせ、6 秒かけて元に戻します（最大 ±6dB）', s.levelMatch, 'data-setting="levelMatch"')}
@@ -614,6 +821,12 @@
         const r = MP.gear.recommend(g, S.listenDb);
         return r.pick ? `おすすめ：${MP.gear.GAINS[r.pick]}ゲイン` : 'イヤホンの感度を入れてください';
       }
+      case 'lyrics': return 'LRC の歌詞を再生に合わせて表示';
+      case 'abx': return S.abx && !S.abx.finished ? `テスト中（${S.abx.trial}/${S.abx.n}）` : engine.loop ? '区間リピート中' : '区間リピートとブラインドテスト';
+      case 'crossfeed': return S.bypass.crossfeed ? '一時的にオフ' : `強さ：${CROSSFEED[S.cfLevel].name}`;
+      case 'sleep': return sleepText();
+      case 'smart': return `${S.smart.length} 件`;
+      case 'landscape': return '横にすると切り替わります';
       case 'safety': return splOffset() == null ? '機材プロファイルが必要です' : `今週 ${Math.round(MP.gear.weekPercent())}%`;
     }
     return '';
@@ -773,6 +986,143 @@
         <p class="note">推定の前提：機材プロファイルの端子・出力モード・ゲインとイヤホンの感度、本体の音量（${S.hw.vol} / ${S.hw.max}、−${hwAtten().toFixed(1)}dB）。耳の形や装着具合でも数 dB 変わるため、目安として使ってください。医療用の測定ではありません。</p>`;
     },
   };
+  TOOL_VIEWS.lyrics = () => `
+    ${toolHead('LYRICS / LRC', '同期歌詞')}
+    <div class="card"><div class="lyrics big" data-lyrics></div></div>
+    <div class="actions">
+      <label class="btn press" for="lrc-input">LRC ファイルを読み込む</label>
+      <input type="file" id="lrc-input" accept=".lrc,.txt" data-lrc-input hidden>
+    </div>
+    <p class="note">再生中の曲に歌詞を結び付けます。フォルダーを読み込むときは、音楽と同じフォルダーにある同じ名前の .lrc を自動で使います。タグに埋め込まれた歌詞（時刻付きなら同期表示）も読みます。</p>`;
+
+  TOOL_VIEWS.abx = () => {
+    const t = engine.queue[engine.index];
+    const L = engine.loop;
+    const targets = abxTargets();
+    const a = S.abx;
+    let blind;
+    if (a && !a.finished) {
+      blind = `
+        <div class="card-head"><span>ブラインドテスト：${esc(toolName(a.target))}</span><span class="note" style="margin:0">${a.trial} / ${a.n} 回目</span></div>
+        <div class="progress"><span style="width:${((a.trial - 1) / a.n) * 100}%"></span></div>
+        <p class="note">A（オフ）と B（オン）を聴いてから、X を聴いて、どちらと同じかを当ててください。いま聴いているのは <strong>${a.heard === 'X' ? 'X' : a.heard}</strong> です。</p>
+        <div class="abx-listen">
+          ${['A', 'B', 'X'].map((w) => `<button class="btn press ${a.heard === w ? 'primary' : ''}" data-abx-listen="${w}">${w}${w === 'A' ? '（オフ）' : w === 'B' ? '（オン）' : ''}</button>`).join('')}
+        </div>
+        <div class="test-buttons">
+          <button class="btn press" data-abx-answer="A">X は A</button>
+          <button class="btn press" data-abx-answer="B">X は B</button>
+        </div>
+        <div class="actions" style="margin-top:10px"><button class="btn press" data-action="abx-stop">やめる</button></div>`;
+    } else if (a && a.finished) {
+      const pv = MP.extras.pValue(a.correct, a.n);
+      blind = `
+        <div class="card-head"><span>結果：${esc(toolName(a.target))}</span></div>
+        <div class="big-meter"><strong>${a.correct}/${a.n}</strong><span>正解</span></div>
+        <div class="verdict ${pv < 0.05 ? 'ok' : ''}"><span>${pv < 0.05 ? '違いを聞き分けられている可能性が高いです' : '当てずっぽうと区別できませんでした（違いがわずか、または聞き分けにくい）'}</span><small>偶然にこれ以上当たる確率：${(pv * 100).toFixed(1)}%（5% 未満なら偶然とは言いにくい）</small></div>
+        <div class="actions" style="margin-top:10px"><button class="btn press primary" data-action="abx-close">閉じる</button></div>`;
+    } else {
+      blind = targets.length ? `
+        <div class="form-grid">
+          <label>比べるもの<select id="abx-target">${targets.map((id) => `<option value="${id}">${esc(toolName(id))}（オン／オフ）</option>`).join('')}</select></label>
+          <label>回数<select id="abx-n"><option>8</option><option selected>10</option><option>16</option></select></label>
+        </div>
+        <label class="switch"><span class="label">音量をそろえる<small>オンにすると下がる音量（プリアンプなど）の分だけ、オフ側も下げます。大きいほうが良く聞こえる錯覚を防ぎます</small></span>
+          <input type="checkbox" role="switch" id="abx-match" checked></label>
+        <div class="actions"><button class="btn press primary" data-action="abx-start" ${t ? '' : 'disabled'}>テストを始める</button></div>
+        ${t ? '' : '<p class="note">曲を再生してから始めてください。</p>'}
+        <p class="note">テスト中は信号経路の表示などを隠します。</p>`
+        : '<p class="note">比べられるツールがありません。設定で EQ・聴力補正・クロスフィードのどれかを有効にしてください。</p>';
+    }
+    return `
+      ${toolHead('A/B · BLIND TEST', '聴き比べ')}
+      <h2>区間リピート</h2>
+      <div class="card">
+        ${t ? `<p class="note" style="margin-top:0">${esc(t.title)}：同じ区間を繰り返して、出力モードの切り替えや EQ のオン・オフを聴き比べます。</p>
+        <div class="ab-points">
+          <div class="fact"><span>A 点</span><strong>${S.ab.a != null ? fmtTime(S.ab.a) + '.' + Math.floor((S.ab.a % 1) * 10) : '—'}</strong></div>
+          <div class="fact"><span>B 点</span><strong>${S.ab.b != null ? fmtTime(S.ab.b) + '.' + Math.floor((S.ab.b % 1) * 10) : '—'}</strong></div>
+          <div class="fact"><span>状態</span><strong style="font-size:14px">${L ? '繰り返し中' : '通常再生'}</strong></div>
+        </div>
+        <div class="actions">
+          <button class="btn press" data-action="ab-a">A 点をいまの位置に</button>
+          <button class="btn press" data-action="ab-b">B 点をいまの位置に</button>
+          <button class="btn press" data-action="ab-15">いまから 15 秒</button>
+          ${L ? '<button class="btn press primary" data-action="ab-clear">繰り返しをやめる</button>' : `<button class="btn press primary" data-action="ab-loop" ${S.ab.a != null && S.ab.b != null && S.ab.b > S.ab.a ? '' : 'disabled'}>繰り返す</button>`}
+        </div>` : '<p class="note" style="margin:0">曲を再生すると使えます。</p>'}
+      </div>
+      <h2>ブラインドテスト</h2>
+      <div class="card">${blind}</div>`;
+  };
+
+  TOOL_VIEWS.crossfeed = () => `
+    ${toolHead('CROSSFEED', 'クロスフィード')}
+    ${bypassCard('crossfeed', 'クロスフィード')}
+    <div class="card">
+      <div class="seg" role="radiogroup" aria-label="クロスフィードの強さ" style="grid-template-columns:repeat(3,1fr)">
+        ${Object.entries(CROSSFEED).map(([k, v]) => `<button role="radio" aria-checked="${S.cfLevel === k}" data-cf="${k}">${v.name}</button>`).join('')}
+      </div>
+      <p class="note">反対側の音を、低い音だけ少し遅らせて小さく混ぜます（${CROSSFEED[S.cfLevel].feedDb}dB・${CROSSFEED[S.cfLevel].fc}Hz 以下）。スピーカーで聴くときのように、左右に極端に分かれた古いステレオ録音の聴き疲れを減らします。M8T の 4.4mm バランスは左右の分離がとても高い（115dB）ため、効果がわかりやすい出力です。</p>
+    </div>`;
+
+  TOOL_VIEWS.sleep = () => `
+    ${toolHead('SLEEP TIMER', 'スリープタイマー')}
+    <div class="card">
+      <div class="big-meter"><strong style="font-size:22px" data-sleep-left>${esc(sleepText())}</strong></div>
+      <div class="chips" style="margin-top:12px">
+        ${[15, 30, 45, 60, 90].map((m) => `<button class="chip press" data-sleep="${m}">${m} 分</button>`).join('')}
+        <button class="chip press" data-sleep="track">この曲が終わったら</button>
+        ${S.sleep ? '<button class="chip press" data-sleep="off">解除</button>' : ''}
+      </div>
+      <p class="note">時間で止める場合は、最後の 20 秒で少しずつ音を小さくしてから止めます。</p>
+    </div>`;
+
+  TOOL_VIEWS.smart = () => {
+    const edit = S.smartEdit ? S.smart.find((r) => r.id === S.smartEdit) : null;
+    const f = edit || { name: '', genre: '', artist: '', minDr: null, maxDr: null, hiresOnly: false, losslessOnly: false, plays: 'any', sort: 'random', limit: 50 };
+    const opt = (map, cur) => Object.entries(map).map(([k, v]) => `<option value="${k}" ${k === cur ? 'selected' : ''}>${v}</option>`).join('');
+    return `
+      ${toolHead('SMART PLAYLISTS', 'スマートプレイリスト')}
+      <div class="card">
+        ${S.smart.length ? S.smart.map((r) => { const n = S.tracks.length ? MP.extras.evaluate(r, S.tracks).length : 0; return `
+          <div class="profile">
+            <span class="name">${esc(r.name)}<small>${esc(MP.extras.describeRule(r))} ・ いま ${n} 曲</small></span>
+            <button class="btn press primary" data-smart-play="${r.id}" ${n ? '' : 'disabled'}>${icon('play')}再生</button>
+            <button class="btn press" data-smart-edit="${r.id}">編集</button>
+            <button class="btn press" data-smart-delete="${r.id}">削除</button>
+          </div>`; }).join('') : '<p class="muted" style="margin:0">まだありません。</p>'}
+      </div>
+      <p class="note">DR の条件は、解析済みの曲だけが対象です（アルバム画面の「アルバムを解析」）。再生回数は、30 秒か曲の半分を聴くと 1 回と数えます。</p>
+      <h2>${edit ? '編集' : '追加'}</h2>
+      <form class="card" data-smart-form>
+        <div class="form-grid">
+          <label>名前<input id="sp-name" required value="${esc(f.name)}" placeholder="例：夜に聴くジャズ"></label>
+          <label>ジャンルに含む<input id="sp-genre" list="sp-genres" value="${esc(f.genre || '')}" placeholder="例：Jazz"><datalist id="sp-genres">${S.genres.map((g) => `<option value="${esc(g.name)}">`).join('')}</datalist></label>
+          <label>アーティストに含む<input id="sp-artist" value="${esc(f.artist || '')}"></label>
+          <label>DR の下限<input id="sp-min" type="number" min="0" max="30" value="${f.minDr ?? ''}" placeholder="指定なし"></label>
+          <label>DR の上限<input id="sp-max" type="number" min="0" max="30" value="${f.maxDr ?? ''}" placeholder="指定なし"></label>
+          <label>再生回数<select id="sp-plays">${opt({ any: '指定なし', never: 'まだ聴いていない', played: '聴いたことがある' }, f.plays || 'any')}</select></label>
+          <label>並び順<select id="sp-sort">${opt({ random: 'ランダム', plays: '再生回数の多い順', dr: 'DR の高い順', stale: 'しばらく聴いていない順' }, f.sort || 'random')}</select></label>
+          <label>最大曲数<input id="sp-limit" type="number" min="1" max="1000" value="${f.limit || 50}"></label>
+        </div>
+        <label class="switch"><span class="label">ハイレゾだけ<small>88.2kHz 以上、または 24bit 以上</small></span><input type="checkbox" role="switch" id="sp-hires" ${f.hiresOnly ? 'checked' : ''}></label>
+        <label class="switch"><span class="label">ロスレスだけ<small>FLAC・WAV・ALAC・AIFF</small></span><input type="checkbox" role="switch" id="sp-lossless" ${f.losslessOnly ? 'checked' : ''}></label>
+        <div class="actions" style="margin-top:8px">
+          <button class="btn press primary" type="submit">${edit ? '保存' : '追加'}</button>
+          ${edit ? '<button class="btn press" type="button" data-action="smart-cancel">やめる</button>' : ''}
+        </div>
+      </form>`;
+  };
+
+  TOOL_VIEWS.landscape = () => `
+    ${toolHead('DECK VIEW', '横向き表示')}
+    <div class="card">
+      <p style="margin-top:0">端末を横にして再生画面を開くと、左にレコード、右に曲情報・VU メーター・リアルタイムのスペクトラムが並ぶ、オーディオ機器風の画面になります。</p>
+      <label class="switch"><span class="label">縦向きでも試す<small>この画面を確認するための一時的な切り替えです（保存しません）</small></span>
+        <input type="checkbox" role="switch" id="deck-force" data-deck-force ${S.deckForce ? 'checked' : ''}></label>
+      <div class="actions" style="margin-top:8px"><button class="btn press primary" data-action="open-now">再生画面を開く</button></div>
+    </div>`;
+
   TOOL_VIEWS.eq = (function () {
     const VIEWS_EQ = {
     eq() {
@@ -860,6 +1210,7 @@
       if (S.toolId === 'eq') drawEq();
       if (S.toolId === 'hearing' && !S.test) drawHearing();
       if (S.toolId === 'safety') updateSafetyView();
+      if (S.toolId === 'lyrics') fillLyrics();
     },
   };
 
@@ -1075,17 +1426,51 @@
   }
 
   // ---------- 再生画面：ジャケットを横にスワイプすると出てくるツール ----------
-  const NOW_TOOLS = ['eq', 'hearing', 'rg', 'gear', 'safety'];
+  const NOW_TOOLS = ['lyrics', 'eq', 'hearing', 'crossfeed', 'rg', 'abx', 'sleep', 'gear', 'safety'];
   let nowPage = 0;
   const toolName = (id) => (TOOLS.find((t) => t.id === id) || {}).name || id;
   const panelHead = (id, audio) => `
     <div class="panel-head">
       <strong>${icon(TOOLS.find((t) => t.id === id).icon)}${esc(toolName(id))}</strong>
-      ${audio ? `<label class="switch"><span class="label">一時オフ</span><input type="checkbox" role="switch" id="np-bypass-${id}" data-bypass="${id}" ${S.bypass[id] ? 'checked' : ''} aria-label="${esc(toolName(id))}を一時的にオフ"></label>` : ''}
+      ${S.abx && !S.abx.finished && S.abx.target === id ? '<span class="note" style="margin:0">ブラインドテスト中</span>' : audio ? `<label class="switch"><span class="label">一時オフ</span><input type="checkbox" role="switch" id="np-bypass-${id}" data-bypass="${id}" ${S.bypass[id] ? 'checked' : ''} aria-label="${esc(toolName(id))}を一時的にオフ"></label>` : ''}
     </div>`;
   const moreBtn = (id) => `<button class="btn press more" data-tool="${id}">詳しく調整</button>`;
 
   const NOW_PANELS = {
+    lyrics: () => `
+      ${panelHead('lyrics', false)}
+      <div class="lyrics" data-lyrics></div>`,
+    crossfeed: () => `
+      ${panelHead('crossfeed', true)}
+      <div class="seg" role="radiogroup" aria-label="クロスフィードの強さ" style="grid-template-columns:repeat(3,1fr)">
+        ${Object.entries(CROSSFEED).map(([k, v]) => `<button role="radio" aria-checked="${S.cfLevel === k}" data-cf="${k}">${v.name}</button>`).join('')}
+      </div>
+      <p class="note" style="margin:0">反対側の低い音を少し遅らせて混ぜ、左右に分かれすぎた録音を自然にします。</p>
+      ${moreBtn('crossfeed')}`,
+    abx: () => {
+      const L = engine.loop;
+      return `
+        ${panelHead('abx', false)}
+        <div class="ab-points">
+          <div class="fact"><span>A 点</span><strong>${S.ab.a != null ? fmtTime(S.ab.a) : '—'}</strong></div>
+          <div class="fact"><span>B 点</span><strong>${S.ab.b != null ? fmtTime(S.ab.b) : '—'}</strong></div>
+        </div>
+        <div class="actions">
+          <button class="btn press" data-action="ab-a">A 点</button>
+          <button class="btn press" data-action="ab-b">B 点</button>
+          <button class="btn press" data-action="ab-15">いまから 15 秒</button>
+          ${L ? '<button class="btn press primary" data-action="ab-clear">解除</button>' : `<button class="btn press primary" data-action="ab-loop" ${S.ab.a != null && S.ab.b != null && S.ab.b > S.ab.a ? '' : 'disabled'}>繰り返す</button>`}
+        </div>
+        ${moreBtn('abx')}`;
+    },
+    sleep: () => `
+      ${panelHead('sleep', false)}
+      <p class="sleep-left" data-sleep-left>${esc(sleepText())}</p>
+      <div class="chips">
+        ${[15, 30, 60].map((m) => `<button class="chip press" data-sleep="${m}">${m} 分</button>`).join('')}
+        <button class="chip press" data-sleep="track">この曲まで</button>
+        ${S.sleep ? '<button class="chip press" data-sleep="off">解除</button>' : ''}
+      </div>`,
     eq: () => `
       ${panelHead('eq', true)}
       <canvas class="eq-graph" data-np-eq-graph aria-label="EQ の特性"></canvas>
@@ -1150,6 +1535,7 @@
     for (const c of $$('[data-np-eq-graph]')) drawEqOn(c);
     drawHearing();
     updateSafetyView();
+    fillLyrics();
   }
 
   $('[data-now-pages]').addEventListener('scroll', (e) => {
@@ -1195,7 +1581,11 @@
   }
 
   function updateSignal() {
-    const { stages, pure } = engine.signalPath();
+    let { stages, pure } = engine.signalPath();
+    if (S.abx && !S.abx.finished) {
+      stages = stages.filter((x) => !['EQ', '聴力補正', 'クロスフィード', 'プリアンプ', '音量'].includes(x.label));
+      stages.push({ label: 'テスト', value: 'ブラインドテスト中（処理の状態は隠しています）', status: 'info' });
+    }
     const g = activeGear();
     const at = stages.findIndex((x) => x.label === '出力');
     const extra = [];
@@ -1204,8 +1594,8 @@
     if (extra.length) stages.splice(at < 0 ? stages.length : at + 1, 0, ...extra);
     for (const b of $$('[data-pure-badge]')) {
       const has = engine.queue[engine.index];
-      b.textContent = has ? (pure ? '素通し' : '加工中') : '';
-      b.className = b.className.replace(/\b(pure|processed)\b/g, '').trim() + ' ' + (pure ? 'pure' : 'processed');
+      b.textContent = has ? (S.abx && !S.abx.finished ? 'テスト中' : pure ? '素通し' : '加工中') : '';
+      b.className = b.className.replace(/\b(pure|processed)\b/g, '').trim() + ' ' + (pure && !(S.abx && !S.abx.finished) ? 'pure' : 'processed');
     }
     if (!nowOpen) return;
     $('.stages').innerHTML = stages.map((s) => `<li class="${s.status}"><span class="dot"></span><span class="k">${esc(s.label)}</span><span>${esc(s.value)}</span></li>`).join('');
@@ -1260,7 +1650,8 @@
     $('#now .seg').hidden = !S.tools.nonstop;
     const vol = Math.round(engine.s.volume * 100);
     $('.volume').value = vol;
-    $('.vol-label').textContent = vol === 100 ? '100%（素通し）' : `${vol}%（デジタル音量）`;
+    $('.vol-label').textContent = S.abx && !S.abx.finished ? 'ブラインドテスト中' : vol === 100 ? '100%（素通し）' : `${vol}%（デジタル音量）`;
+    if (S.abx && !S.abx.finished) $('.volume').value = Math.round(S.abx.vol * 100);
     setPlayIcons();
     updateSignal();
     updateTransitionHint();
@@ -1282,8 +1673,63 @@
     MP.insights.drawWave($('.wave'), full ? full.wave : null, prog);
   }
 
-  function openNow() { nowOpen = true; $('#now').hidden = false; updateNow(); renderNowAnalysis(); startVu(); }
-  function closeNow() { nowOpen = false; $('#now').hidden = true; vu.stop(); }
+  function openNow() { nowOpen = true; $('#now').hidden = false; updateNow(); renderNowAnalysis(); startVu(); updateDeck(); }
+  function closeNow() { nowOpen = false; $('#now').hidden = true; vu.stop(); updateDeck(); }
+
+  // ---------- 横向き表示 ----------
+  const landscapeMq = window.matchMedia('(orientation: landscape)');
+  let rtRaf = 0;
+  function updateDeck() {
+    const on = !!(S.tools.landscape && (landscapeMq.matches || S.deckForce));
+    $('#now').classList.toggle('deck', on);
+    if (on && nowOpen) { if (!rtRaf) rtRaf = requestAnimationFrame(drawRt); }
+    else { cancelAnimationFrame(rtRaf); rtRaf = 0; }
+  }
+  landscapeMq.addEventListener('change', updateDeck);
+
+  // リアルタイムのスペクトラム（30Hz〜20kHz を 1/3 オクターブ前後で 40 本）
+  const rtBins = new Float32Array(1024), rtBins2 = new Float32Array(1024);
+  let rtLevels = new Float32Array(40), rtPeaks = new Float32Array(40);
+  function drawRt() {
+    rtRaf = 0;
+    if (!nowOpen || !$('#now').classList.contains('deck')) return;
+    const c = $('.rt');
+    const dpr = window.devicePixelRatio || 1;
+    const w = c.clientWidth, h = c.clientHeight;
+    if (w && h) {
+      if (c.width !== Math.round(w * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
+      const g = c.getContext('2d');
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      g.clearRect(0, 0, w, h);
+      const m = engine.meters;
+      const playing = engine.state === 'playing' && m;
+      if (playing) { m[0].getFloatFrequencyData(rtBins); m[1].getFloatFrequencyData(rtBins2); }
+      const nyq = engine.ctx ? engine.ctx.sampleRate / 2 : 22050;
+      const n = rtLevels.length, lo = Math.log10(30), hi = Math.log10(Math.min(20000, nyq * 0.95));
+      const css = getComputedStyle(document.documentElement);
+      const col = css.getPropertyValue('--c-main').trim(), pk = css.getPropertyValue('--ink').trim();
+      const bw = w / n;
+      for (let i = 0; i < n; i++) {
+        let v = -100;
+        if (playing) {
+          const f0 = 10 ** (lo + (hi - lo) * i / n), f1 = 10 ** (lo + (hi - lo) * (i + 1) / n);
+          const k0 = Math.floor(f0 / nyq * 1024), k1 = Math.max(k0 + 1, Math.ceil(f1 / nyq * 1024));
+          let p = 0;
+          for (let k = k0; k < k1 && k < 1024; k++) p = Math.max(p, 10 ** (rtBins[k] / 10) + 10 ** (rtBins2[k] / 10));
+          v = 10 * Math.log10(p / 2 + 1e-12);
+        }
+        const target = Math.max(0, Math.min(1, (v + 100) / 90));
+        rtLevels[i] = target > rtLevels[i] ? target : rtLevels[i] * 0.9 + target * 0.1;
+        rtPeaks[i] = Math.max(rtLevels[i], rtPeaks[i] - 0.006);
+        const bh = rtLevels[i] * (h - 4);
+        g.fillStyle = col;
+        g.fillRect(i * bw + 1, h - bh, bw - 2, bh);
+        g.fillStyle = pk;
+        g.fillRect(i * bw + 1, h - rtPeaks[i] * (h - 4) - 2, bw - 2, 2);
+      }
+    }
+    rtRaf = requestAnimationFrame(drawRt);
+  }
 
   // ---------- VU メーター ----------
   const vu = new MP.insights.VUMeter($('.vu'));
@@ -1382,7 +1828,13 @@
 
   // ---------- エンジンのイベント ----------
   let analyzeTimer = null;
+  engine.addEventListener('ended', () => {
+    if (S.sleep && S.sleep.afterTrack) { S.sleep = null; toast('スリープタイマーで止めました'); updateSleepViews(); }
+  });
+  setInterval(() => { if (engine.state === 'playing') saveResume(); }, 5000);
   engine.addEventListener('trackchange', () => {
+    if (!engine.loop) S.ab = { a: null, b: null };
+    fillLyrics();
     updateMini(); updateNow(); updateMediaSession(); renderNowAnalysis();
     clearTimeout(analyzeTimer);
     analyzeTimer = setTimeout(analyzeCurrent, 400);
@@ -1399,6 +1851,7 @@
     }
   });
   engine.addEventListener('state', () => {
+    if (engine.state === 'paused') saveResume();
     if (engine.state === 'playing') { startVu(); clearTimeout(analyzeTimer); analyzeTimer = setTimeout(analyzeCurrent, 400); }
     setPlayIcons();
     if ('mediaSession' in navigator) navigator.mediaSession.playbackState = engine.state === 'playing' ? 'playing' : 'paused';
@@ -1408,6 +1861,8 @@
   engine.addEventListener('queue', updateQueue);
   let lastXf = false;
   engine.addEventListener('time', () => {
+    updateLyrics();
+    trackStats();
     updateTime();
     const xf = engine.inCrossfade();
     if (xf !== lastXf) { lastXf = xf; updateSignal(); }
@@ -1422,6 +1877,29 @@
 
     if (d.nav) return go(d.nav);
     if (d.tool) { if (nowOpen) closeNow(); return go('tool', { toolId: d.tool }); }
+    if (d.abxListen) { abxListen(d.abxListen); return render(); }
+    if (d.abxAnswer) { abxAnswer(d.abxAnswer === 'B'); return render(); }
+    if (d.cf) {
+      S.cfLevel = d.cf;
+      store.set('cfLevel', S.cfLevel);
+      applyTools();
+      for (const x of $$('[data-cf]')) x.setAttribute('aria-checked', x.dataset.cf === d.cf);
+      if (S.view === 'tool' && S.toolId === 'crossfeed') render();
+      return;
+    }
+    if (d.sleep) { setSleep(d.sleep); if (S.view === 'tool') render(); updateNow(); return; }
+    if (d.smartPlay) {
+      const r = S.smart.find((x) => x.id === d.smartPlay);
+      const list = MP.extras.evaluate(r, S.tracks);
+      if (list.length) { S.shuffle = false; playList(list, 0); toast(`「${r.name}」を再生します（${list.length} 曲）`); }
+      return;
+    }
+    if (d.smartEdit) { S.smartEdit = d.smartEdit; render(); $('[data-smart-form]').scrollIntoView({ block: 'start' }); return; }
+    if (d.smartDelete) {
+      S.smart = S.smart.filter((x) => x.id !== d.smartDelete);
+      store.set('smart', S.smart);
+      return render();
+    }
     if (d.nowPage != null) {
       const pages = $('[data-now-pages]');
       pages.scrollTo({ left: Number(d.nowPage) * pages.clientWidth, behavior: 'smooth' });
@@ -1514,6 +1992,33 @@
         applyTools();
         if (S.view === 'tool') render();
         return;
+      case 'abx-start': {
+        const n = Number($('#abx-n').value) || 10;
+        startAbx($('#abx-target').value, n, $('#abx-match').checked);
+        toast('A と B を聴いてから、X がどちらかを当ててください');
+        return render();
+      }
+      case 'abx-stop': endAbx(); toast('ブラインドテストをやめました'); return render();
+      case 'abx-close': S.abx = null; updateNow(); return render();
+      case 'ab-a': S.ab.a = engine.position(); if (S.ab.b != null && S.ab.b <= S.ab.a) S.ab.b = null; updateNow(); return S.view === 'tool' ? render() : null;
+      case 'ab-b': S.ab.b = engine.position(); updateNow(); return S.view === 'tool' ? render() : null;
+      case 'ab-15': {
+        const pos = engine.position();
+        S.ab = { a: pos, b: Math.min(engine.duration() - 0.05, pos + 15) };
+        engine.setLoop(S.ab.a, S.ab.b);
+        toast('いまの位置から 15 秒を繰り返します');
+        setTimeout(() => { updateNow(); if (S.view === 'tool') render(); }, 200);
+        return;
+      }
+      case 'ab-loop':
+        engine.setLoop(S.ab.a, S.ab.b);
+        setTimeout(() => { updateNow(); if (S.view === 'tool') render(); }, 200);
+        return;
+      case 'ab-clear':
+        engine.clearLoop();
+        setTimeout(() => { updateNow(); if (S.view === 'tool') render(); }, 200);
+        return;
+      case 'smart-cancel': S.smartEdit = null; return render();
       case 'cancel-gear':
         S.gearEdit = null;
         return render();
@@ -1640,6 +2145,19 @@
       document.documentElement.dataset.spin = S.spin ? 'on' : 'off';
       return;
     }
+    if ('pref' in d) { S[d.pref] = el.checked; store.set(d.pref, el.checked); return; }
+    if ('deckForce' in d) { S.deckForce = el.checked; updateDeck(); return; }
+    if ('lrcInput' in d) {
+      const t = engine.queue[engine.index];
+      const f = el.files[0];
+      el.value = '';
+      if (!t || !f) { toast('先に曲を再生してください'); return; }
+      t.lrcFile = f;
+      lyricsCache.delete(t.path);
+      fillLyrics();
+      toast(`「${t.title}」に歌詞を結び付けました`);
+      return;
+    }
     if ('toolToggle' in d) {
       S.tools[d.toolToggle] = el.checked;
       store.set('tools', S.tools);
@@ -1688,6 +2206,22 @@
   });
 
   document.addEventListener('submit', (e) => {
+    if (e.target.matches('[data-smart-form]')) {
+      e.preventDefault();
+      const num = (id) => { const v = $(id).value.trim(); return v === '' ? null : Number(v); };
+      const rule = {
+        name: $('#sp-name').value.trim() || 'プレイリスト',
+        genre: $('#sp-genre').value.trim(), artist: $('#sp-artist').value.trim(),
+        minDr: num('#sp-min'), maxDr: num('#sp-max'),
+        plays: $('#sp-plays').value, sort: $('#sp-sort').value, limit: num('#sp-limit') || 50,
+        hiresOnly: $('#sp-hires').checked, losslessOnly: $('#sp-lossless').checked,
+      };
+      if (S.smartEdit) { Object.assign(S.smart.find((r) => r.id === S.smartEdit), rule); S.smartEdit = null; toast('保存しました'); }
+      else { S.smart.push({ id: 'sp' + Date.now().toString(36), ...rule }); toast(`「${rule.name}」を追加しました`); }
+      store.set('smart', S.smart);
+      render();
+      return;
+    }
     if (!e.target.matches('[data-gear-form]')) return;
     e.preventDefault();
     const num = (id) => { const v = $(id).value.trim(); return v === '' ? '' : Number(v); };
@@ -1728,6 +2262,7 @@
 
   // 初期化
   for (const el of $$('[data-icon]')) el.innerHTML = icon(el.dataset.icon);
+  window.addEventListener('pagehide', saveResume);
   setPlayIcons();
   render();
 

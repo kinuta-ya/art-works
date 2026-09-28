@@ -18,7 +18,17 @@
     hearingProfile: null,   // { name, L: [{freq, gain}], R: [...] }
     replayGain: 'off',      // 'off' | 'track' | 'album'
     rgPreventClip: true,    // ReplayGain で持ち上げてもピークが 0dBFS を超えないようにする
+    crossfeed: null,        // { feedDb, fc }（null ならオフ）
   };
+
+  // 曲の区間（CUE シートの曲は、1 つのファイルの一部）
+  function segOf(track, buffer) {
+    const s = Math.max(0, track.segStart || 0);
+    const e = Math.min(buffer.duration, track.segEnd != null ? track.segEnd : buffer.duration);
+    return { s, e, len: Math.max(0.05, e - s) };
+  }
+  // デコード結果の保存に使う鍵（CUE の曲は同じファイルを共有する）
+  const bufferKey = (track) => track.fileKey || track.id;
 
   const LOOKAHEAD = 0.08; // 再生開始までの余裕（秒）
 
@@ -40,6 +50,8 @@
       this.timer = null;
       // アプリから渡す関数：ReplayGain の値 { db, peak, source } を返す（無ければ null）
       this.gainInfo = () => null;
+      this.loop = null;           // 区間リピート { a, b, t0, off }
+      this.stopAfterCurrent = false; // スリープタイマー：この曲が終わったら止める
       // アプリから渡す関数：ReplayGain がオンのとき、再生前に解析を済ませる
       this.prepare = async () => {};
     }
@@ -124,6 +136,32 @@
         this.chain.push(merge);
         last = merge;
       }
+      if (this.s.crossfeed) {
+        // クロスフィード：反対側の音を低域だけ、少し遅らせて小さく混ぜる（bs2b と同じ考え方）
+        const { feedDb, fc } = this.s.crossfeed;
+        const feed = 10 ** (feedDb / 20);
+        const norm = 1 / (1 + feed); // 低域で音量が増える分を下げる
+        const split = ctx.createChannelSplitter(2);
+        const merge = ctx.createChannelMerger(2);
+        link(split);
+        for (let ch = 0; ch < 2; ch++) {
+          const direct = ctx.createGain();
+          direct.gain.value = norm;
+          split.connect(direct, ch);
+          direct.connect(merge, 0, ch);
+          const lp = ctx.createBiquadFilter();
+          lp.type = 'lowpass'; lp.frequency.value = fc; lp.Q.value = 0.5;
+          const delay = ctx.createDelay(0.01);
+          delay.delayTime.value = 0.0003;
+          const cross = ctx.createGain();
+          cross.gain.value = feed * norm;
+          split.connect(lp, ch);
+          lp.connect(delay).connect(cross).connect(merge, 0, 1 - ch);
+          this.chain.push(direct, lp, delay, cross);
+        }
+        this.chain.push(merge);
+        last = merge;
+      }
       last.connect(ctx.destination);
       last.connect(this.tapSplit);
       this.emit('signalpath');
@@ -177,12 +215,12 @@
       const eq = this.eqActive() ? this.s.eqBands.filter((b) => b.enabled && Math.abs(b.gain) >= 0.01).map((b) => b.type).join(',') : '';
       const h = this.hearingActive() ? JSON.stringify(this.s.hearingProfile) : '';
       const preOn = Math.abs(this.s.volume * 10 ** (this.computePreamp() / 20) - 1) > 1e-6;
-      return [eq, h, preOn].join('|');
+      return [eq, h, preOn, JSON.stringify(this.s.crossfeed)].join('|');
     }
 
     // ---------- 読み込みと解析 ----------
     async load(track) {
-      const key = track.id;
+      const key = bufferKey(track);
       if (!this.buffers.has(key)) {
         const p = (async () => {
           if (track.makeBuffer) return track.makeBuffer();
@@ -196,15 +234,19 @@
     }
 
     analysisOf(track, buffer) {
-      if (!this.analyses.has(track.id)) this.analyses.set(track.id, MP.analysis.analyze(buffer));
+      if (!this.analyses.has(track.id)) {
+        const { s, e } = segOf(track, buffer);
+        const b = s > 0 || e < buffer.duration ? MP.engineUtil.slice(buffer, s, e) : buffer;
+        this.analyses.set(track.id, MP.analysis.analyze(b));
+      }
       return this.analyses.get(track.id);
     }
 
     // 現在と次の曲以外のバッファを解放
     trimCache() {
-      const keep = new Set(this.players.map((p) => p.track.id));
+      const keep = new Set(this.players.map((p) => bufferKey(p.track)));
       const next = this.queue[this.nextIndex()];
-      if (next) keep.add(next.id);
+      if (next) keep.add(bufferKey(next));
       for (const k of this.buffers.keys()) if (!keep.has(k)) this.buffers.delete(k);
     }
 
@@ -227,9 +269,11 @@
         if (token !== this.token) return;
         if (this.s.replayGain !== 'off') await this.prepare(track, buffer);
         if (token !== this.token) return;
-        offset = Math.max(0, Math.min(offset, buffer.duration - 0.05));
+        const { len } = segOf(track, buffer);
+        offset = Math.max(0, Math.min(offset, len - 0.05));
         const at = this.ctx.currentTime + LOOKAHEAD;
-        const player = this.startPlayer(track, index, buffer, at, offset);
+        this.loop = opts.loop ? { a: opts.loop.a, b: opts.loop.b, t0: at, off: offset } : null;
+        const player = this.startPlayer(track, index, buffer, at, offset, this.loop);
         if (offset > 0) { // シーク時のみ 10ms のデクリック
           player.gain.gain.setValueAtTime(0, at);
           player.gain.gain.linearRampToValueAtTime(1, at + 0.01);
@@ -249,16 +293,25 @@
       }
     }
 
-    startPlayer(track, index, buffer, at, offset) {
+    startPlayer(track, index, buffer, at, offset, loop = null) {
       const source = this.ctx.createBufferSource();
       source.buffer = buffer;
+      const { s, len } = segOf(track, buffer);
       const rg = this.ctx.createGain(); // ReplayGain（オフのときは 1.0 倍＝無変換）
       const gain = this.ctx.createGain(); // クロスフェード用
       const rgDb = this.rgDb(track);
       rg.gain.value = 10 ** (rgDb / 20);
       source.connect(rg).connect(gain).connect(this.input);
-      source.start(at, offset);
-      const player = { track, index, buffer, source, rg, rgDb, gain, startCtx: at - offset, stopAt: null };
+      if (loop) {
+        // 区間リピート：サンプル単位で切れ目なく繰り返す
+        source.loop = true;
+        source.loopStart = s + loop.a;
+        source.loopEnd = s + loop.b;
+        source.start(at, s + offset);
+      } else {
+        source.start(at, s + offset, len - offset);
+      }
+      const player = { track, index, buffer, source, rg, rgDb, gain, startCtx: at - offset, len, stopAt: null };
       source.onended = () => {
         const i = this.players.indexOf(player);
         if (i >= 0) this.players.splice(i, 1);
@@ -311,14 +364,15 @@
       const cur = this.currentPlayer;
       if (!cur) return;
       const ni = this.nextIndex();
-      if (ni < 0) { this.transition = { type: 'end', at: cur.startCtx + cur.buffer.duration }; this.emit('transition'); return; }
+      if (this.loop) { this.transition = null; this.emit('transition'); return; } // 区間リピート中は次の曲を予約しない
+      if (ni < 0 || this.stopAfterCurrent) { this.transition = { type: 'end', at: cur.startCtx + cur.len }; this.emit('transition'); return; }
       const next = this.queue[ni];
       let buffer;
       try {
         buffer = await this.load(next);
       } catch (e) {
         this.emit('error', { track: next, message: `${next.title} を読み込めませんでした` });
-        this.transition = { type: 'end', at: cur.startCtx + cur.buffer.duration };
+        this.transition = { type: 'end', at: cur.startCtx + cur.len };
         return;
       }
       if (token !== this.token || this.currentPlayer !== cur) return;
@@ -326,7 +380,7 @@
       if (token !== this.token || this.currentPlayer !== cur) return;
 
       const now = this.ctx.currentTime;
-      const curEndCtx = cur.startCtx + cur.buffer.duration;
+      const curEndCtx = cur.startCtx + cur.len;
       const useCrossfade = this.s.mode === 'crossfade' && !this.isAlbumContinuation(cur.track, next);
 
       if (!useCrossfade) {
@@ -394,7 +448,7 @@
       }
       cur.gain.gain.cancelScheduledValues(0);
       cur.gain.gain.setValueAtTime(1, this.ctx.currentTime);
-      try { cur.source.stop(cur.startCtx + cur.buffer.duration + 1); } catch (e) { /* 無視 */ }
+      if (!this.loop) { try { cur.source.stop(cur.startCtx + cur.len + 1); } catch (e) { /* 無視 */ } }
       this.transition = null;
       this.scheduleNext(this.token);
     }
@@ -430,7 +484,9 @@
         this.trimCache();
         this.scheduleNext(this.token);
       } else if (t && t.type === 'end' && now >= t.at) {
+        this.stopAfterCurrent = false;
         this.stop();
+        this.emit('ended');
         return;
       }
       this.emit('time');
@@ -446,12 +502,17 @@
     position() {
       const p = this.currentPlayer;
       if (!p || !this.ctx) return 0;
-      return Math.max(0, Math.min(p.buffer.duration, this.ctx.currentTime - p.startCtx));
+      const L = this.loop;
+      if (L) {
+        const x = (L.off - L.a) + (this.ctx.currentTime - L.t0);
+        return x < 0 ? L.a + x : L.a + (x % (L.b - L.a));
+      }
+      return Math.max(0, Math.min(p.len, this.ctx.currentTime - p.startCtx));
     }
 
     duration() {
       const p = this.currentPlayer;
-      if (p) return p.buffer.duration;
+      if (p) return p.len;
       const t = this.queue[this.index];
       return t ? t.duration || 0 : 0;
     }
@@ -477,7 +538,41 @@
 
     seek(sec) {
       if (this.index < 0) return;
-      this.play(this.queue, this.index, sec, { paused: this.state === 'paused' });
+      const L = this.loop;
+      const keep = L && sec >= L.a && sec < L.b ? { a: L.a, b: L.b } : null;
+      this.play(this.queue, this.index, sec, { paused: this.state === 'paused', loop: keep });
+    }
+
+    // ---------- 区間リピート ----------
+    setLoop(a, b) {
+      if (this.index < 0 || !(b - a >= 0.2)) return;
+      const pos = this.position();
+      const start = pos >= a && pos < b ? pos : a;
+      this.play(this.queue, this.index, start, { paused: this.state === 'paused', loop: { a, b } });
+    }
+
+    clearLoop() {
+      if (!this.loop) return;
+      const pos = this.position();
+      this.play(this.queue, this.index, pos, { paused: this.state === 'paused' });
+    }
+
+    // ---------- スリープタイマー ----------
+    setStopAfterCurrent(on) {
+      this.stopAfterCurrent = !!on;
+      this.reschedule();
+    }
+
+    // sec 秒かけて音を小さくして止める
+    fadeOutAndStop(sec = 20) {
+      if (!this.ctx || this.state !== 'playing') return Promise.resolve();
+      const g = this.input.gain, now = this.ctx.currentTime;
+      g.cancelScheduledValues(0);
+      g.setValueAtTime(1, now);
+      g.linearRampToValueAtTime(0.0001, now + sec);
+      return new Promise((res) => setTimeout(() => {
+        this.pause().then(() => { g.cancelScheduledValues(0); g.setValueAtTime(1, this.ctx.currentTime); res(); });
+      }, sec * 1000));
     }
 
     next() {
@@ -534,6 +629,10 @@
       if (hOn) pure = false;
       stages.push({ label: '聴力補正', value: hOn ? `オン（${this.s.hearingProfile.name}）` : 'オフ', status: hOn ? 'warn' : 'ok' });
       if (this.preampDb < 0) stages.push({ label: 'プリアンプ', value: `${this.preampDb.toFixed(1)}dB（音割れ防止）`, status: 'warn' });
+      const cf = this.s.crossfeed;
+      if (cf) pure = false;
+      stages.push({ label: 'クロスフィード', value: cf ? `オン（${cf.feedDb}dB・${cf.fc}Hz）` : 'オフ', status: cf ? 'warn' : 'ok' });
+      if (this.loop) stages.push({ label: '区間リピート', value: `${this.loop.a.toFixed(1)}〜${this.loop.b.toFixed(1)} 秒`, status: 'info' });
       const xf = this.inCrossfade();
       if (xf) pure = false;
       stages.push({ label: 'つなぎ', value: xf ? 'クロスフェード中' : this.s.mode === 'crossfade' ? 'スマートクロスフェード（待機中）' : 'ギャップレス', status: xf ? 'warn' : 'ok' });
@@ -543,6 +642,17 @@
 
     emit(type, detail) { this.dispatchEvent(new CustomEvent(type, { detail })); }
   }
+
+  // 区間を切り出した AudioBuffer（解析用）
+  MP.engineUtil = {
+    slice(buffer, s, e) {
+      const sr = buffer.sampleRate, a = Math.floor(s * sr), b = Math.min(buffer.length, Math.floor(e * sr));
+      const out = new AudioBuffer({ length: Math.max(1, b - a), numberOfChannels: buffer.numberOfChannels, sampleRate: sr });
+      for (let c = 0; c < buffer.numberOfChannels; c++) out.copyToChannel(buffer.getChannelData(c).subarray(a, b), c);
+      return out;
+    },
+    segOf,
+  };
 
   MP.Engine = Engine;
 })(window.MP = window.MP || {});
