@@ -48,10 +48,18 @@
                     <span class="now-label">NOW PLAYING</span>
                     <span class="spacer"></span>
                 </header>
-                <button class="now-disc-wrap" data-action="toggle" aria-label="再生/一時停止">
-                    <span class="disc"><img class="now-art" alt=""></span>
-                    <span class="tonearm" aria-hidden="true"></span>
-                </button>
+                <div class="now-stage">
+                    <div class="now-pages" data-now-pages>
+                        <section class="now-page" data-page="disc" aria-label="ジャケット">
+                            <button class="now-disc-wrap" data-action="toggle" aria-label="再生/一時停止">
+                                <span class="disc"><img class="now-art" alt=""></span>
+                                <span class="tonearm" aria-hidden="true"></span>
+                            </button>
+                        </section>
+                        <div class="now-tool-pages" data-now-tool-pages></div>
+                    </div>
+                    <div class="now-dots" data-now-dots role="tablist" aria-label="ジャケットとツールの切り替え"></div>
+                </div>
                 <div class="now-meta">
                     <div class="now-title"></div>
                     <div class="now-sub"></div>

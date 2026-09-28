@@ -370,6 +370,7 @@
     const fn = VIEWS[S.view] || VIEWS.albums;
     v.innerHTML = fn();
     if (AFTER[S.view]) AFTER[S.view]();
+    if (nowOpen) renderNowPages();
   }
 
   function go(view, extra = {}) {
@@ -891,8 +892,9 @@
 
   const graphFreqs = MP.eq.logFreqs(240);
   function drawEq() {
-    const c = $('[data-eq-graph]');
-    if (!c) return;
+    for (const c of $$('[data-eq-graph], [data-np-eq-graph]')) drawEqOn(c);
+  }
+  function drawEqOn(c) {
     const data = MP.eq.responseDb(engine.s.eqBands, graphFreqs);
     const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
     MP.eq.draw(c, [{ data, color: accent, width: 2.5 }], {
@@ -900,8 +902,7 @@
       points: engine.s.eqBands.filter((b) => b.enabled).map((b) => ({ freq: b.freq, gain: b.gain, color: accent })),
     });
     const pre = MP.eq.autoPreamp([data]);
-    const el = $('[data-preamp]');
-    if (el) el.textContent = pre < 0 ? `自動プリアンプ ${pre.toFixed(1)}dB` : 'プリアンプ 0dB';
+    for (const el of $$('[data-preamp]')) el.textContent = pre < 0 ? `自動プリアンプ ${pre.toFixed(1)}dB` : 'プリアンプ 0dB';
   }
 
   function setBands(bands, presetId) {
@@ -913,7 +914,9 @@
 
   // ---------- 聴力テスト ----------
   function drawHearing() {
-    const c = $('[data-hearing-graph]');
+    for (const c of $$('[data-hearing-graph]')) drawHearingOn(c);
+  }
+  function drawHearingOn(c) {
     const p = S.profiles.find((x) => x.id === S.activeProfile);
     if (!c || !p) return;
     const css = getComputedStyle(document.documentElement);
@@ -1061,14 +1064,109 @@
     updateSafetyView();
   }, 500);
 
+  function selectGear(id) {
+    S.activeGear = id;
+    store.set('activeGear', S.activeGear);
+    const g = activeGear();
+    if (g && g.hearingId && S.profiles.some((p) => p.id === g.hearingId)) applyProfile(g.hearingId);
+    updateNow();
+    if (g) toast(`機材を「${g.name}」に切り替えました`);
+    render();
+  }
+
+  // ---------- 再生画面：ジャケットを横にスワイプすると出てくるツール ----------
+  const NOW_TOOLS = ['eq', 'hearing', 'rg', 'gear', 'safety'];
+  let nowPage = 0;
+  const toolName = (id) => (TOOLS.find((t) => t.id === id) || {}).name || id;
+  const panelHead = (id, audio) => `
+    <div class="panel-head">
+      <strong>${icon(TOOLS.find((t) => t.id === id).icon)}${esc(toolName(id))}</strong>
+      ${audio ? `<label class="switch"><span class="label">一時オフ</span><input type="checkbox" role="switch" id="np-bypass-${id}" data-bypass="${id}" ${S.bypass[id] ? 'checked' : ''} aria-label="${esc(toolName(id))}を一時的にオフ"></label>` : ''}
+    </div>`;
+  const moreBtn = (id) => `<button class="btn press more" data-tool="${id}">詳しく調整</button>`;
+
+  const NOW_PANELS = {
+    eq: () => `
+      ${panelHead('eq', true)}
+      <canvas class="eq-graph" data-np-eq-graph aria-label="EQ の特性"></canvas>
+      <div class="legend"><span data-preamp></span></div>
+      <div class="chips">${MP.eq.PRESETS.map((p) => `<button class="chip press" data-preset="${p.id}" aria-pressed="${S.eqPreset === p.id}">${esc(p.name)}</button>`).join('')}</div>
+      ${moreBtn('eq')}`,
+    hearing: () => {
+      const p = S.profiles.find((x) => x.id === S.activeProfile);
+      return `
+        ${panelHead('hearing', !!p)}
+        ${S.profiles.length ? `<select data-np-profile aria-label="聴力補正プロファイル">${S.profiles.map((x) => `<option value="${x.id}" ${x.id === S.activeProfile ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>
+          <canvas class="eq-graph" data-hearing-graph aria-label="補正カーブ"></canvas>
+          <div class="legend"><span><i style="background:var(--info)"></i>左耳</span><span><i style="background:var(--danger)"></i>右耳</span></div>`
+          : '<p class="note">プロファイルがまだありません。聴力テストを受けると作成されます。</p>'}
+        ${moreBtn('hearing')}`;
+    },
+    rg: () => {
+      const t = engine.queue[engine.index];
+      const info = t ? MP.insights.gainInfo(t, S.rgMode) : null;
+      const cp = engine.currentPlayer;
+      return `
+        ${panelHead('rg', true)}
+        <div class="seg" role="radiogroup" aria-label="ReplayGain の単位">
+          ${[['track', 'トラック単位'], ['album', 'アルバム単位']].map(([v, l]) => `<button role="radio" aria-checked="${S.rgMode === v}" data-rg="${v}">${l}</button>`).join('')}
+        </div>
+        <div class="facts">
+          <div class="fact"><span>この曲にかけている量</span><strong>${cp && Math.abs(cp.rgDb) >= 0.01 ? `${cp.rgDb > 0 ? '+' : ''}${cp.rgDb.toFixed(1)}<small> dB</small>` : '0.0<small> dB</small>'}</strong></div>
+          <div class="fact"><span>値の出どころ</span><strong style="font-size:14px">${info ? esc(info.source) : '未解析'}</strong></div>
+        </div>
+        ${moreBtn('rg')}`;
+    },
+    gear: () => {
+      const g = activeGear();
+      const r = g ? MP.gear.recommend(g, S.listenDb) : null;
+      return `
+        ${panelHead('gear', false)}
+        ${S.gears.length ? `<select data-np-gear aria-label="機材プロファイル">${S.gears.map((x) => `<option value="${x.id}" ${x.id === S.activeGear ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>` : '<p class="note">まだ登録がありません。</p>'}
+        ${g ? `<p class="note" style="margin:0">${esc(MP.gear.describe(g))}${g.phone.name ? ` ・ ${esc(g.phone.name)}` : ''}</p>` : ''}
+        ${r && r.pick ? `<div class="verdict ${g.gain === r.pick ? 'ok' : 'warn'}"><span>おすすめは${MP.gear.GAINS[r.pick]}ゲイン${g.gain === r.pick ? '（いまの設定）' : `（いまは${MP.gear.GAINS[g.gain]}）`}</span></div>` : ''}
+        ${moreBtn('gear')}`;
+    },
+    safety: () => splOffset() == null ? `${panelHead('safety', false)}<p class="note">機材プロファイルにイヤホンの感度を入れると使えます。</p>${moreBtn('gear')}` : `
+      ${panelHead('safety', false)}
+      <div class="big-meter"><strong data-safety-now>—</strong><span>dB SPL（推定）</span></div>
+      <p class="note" style="margin:0" data-safety-hint>再生中に表示します。</p>
+      <div class="dose"><span>今日</span><div class="progress"><span data-dose-day></span></div><output data-dose-day-out></output></div>
+      <div class="dose"><span>直近 7 日</span><div class="progress"><span data-dose-week></span></div><output data-dose-week-out></output></div>
+      ${moreBtn('safety')}`,
+  };
+
+  function renderNowPages() {
+    const box = $('[data-now-tool-pages]');
+    const pages = $('[data-now-pages]');
+    if (!box || !pages) return;
+    const x = pages.scrollLeft;
+    const on = NOW_TOOLS.filter((id) => S.tools[id]);
+    box.innerHTML = on.map((id) => `<section class="now-page" data-page="${id}" aria-label="${esc(toolName(id))}"><div class="now-panel">${NOW_PANELS[id]()}</div></section>`).join('');
+    const labels = [['disc', 'ジャケット'], ...on.map((id) => [id, toolName(id)])];
+    nowPage = Math.min(nowPage, labels.length - 1);
+    $('[data-now-dots]').innerHTML = labels.map(([id, l], i) => `<button role="tab" data-now-page="${i}" aria-selected="${i === nowPage}">${esc(l)}</button>`).join('');
+    pages.scrollLeft = x;
+    for (const c of $$('[data-np-eq-graph]')) drawEqOn(c);
+    drawHearing();
+    updateSafetyView();
+  }
+
+  $('[data-now-pages]').addEventListener('scroll', (e) => {
+    const el = e.currentTarget;
+    const i = Math.round(el.scrollLeft / Math.max(1, el.clientWidth));
+    if (i === nowPage) return;
+    nowPage = i;
+    for (const b of $$('[data-now-page]')) b.setAttribute('aria-selected', Number(b.dataset.nowPage) === i);
+  }, { passive: true });
+
   function updateSafetyView() {
-    const el = $('[data-safety-now]');
-    if (el) {
-      el.textContent = S.safetyNow == null ? '—' : Math.max(0, S.safetyNow).toFixed(0);
-      const hint = $('[data-safety-hint]');
-      if (hint) hint.textContent = S.safetyNow == null ? '再生中に表示します。' : S.safetyNow >= 85 ? '大きめです。長時間続けると、聴いてよい量をすぐ使い切ります。' : S.safetyNow >= 75 ? 'ふつうの音量です。' : '控えめな音量です。';
+    const els = $$('[data-safety-now]');
+    if (els.length) {
+      for (const el of els) el.textContent = S.safetyNow == null ? '—' : Math.max(0, S.safetyNow).toFixed(0);
+      for (const hint of $$('[data-safety-hint]')) hint.textContent = S.safetyNow == null ? '再生中に表示します。' : S.safetyNow >= 85 ? '大きめです。長時間続けると、聴いてよい量をすぐ使い切ります。' : S.safetyNow >= 75 ? 'ふつうの音量です。' : '控えめな音量です。';
       const week = MP.gear.weekPercent(), day = MP.gear.todayPercent();
-      const set = (sel, v) => { const x = $(sel); if (x) { if (x.tagName === 'OUTPUT') x.textContent = v.toFixed(1) + '%'; else x.style.width = Math.min(100, v) + '%'; } };
+      const set = (sel, v) => { for (const x of $$(sel)) { if (x.tagName === 'OUTPUT') x.textContent = v.toFixed(1) + '%'; else x.style.width = Math.min(100, v) + '%'; } };
       set('[data-dose-day]', day); set('[data-dose-day-out]', day); set('[data-dose-week]', week); set('[data-dose-week-out]', week);
     }
     if (nowOpen) updateSignal();
@@ -1149,6 +1247,7 @@
   }
 
   function updateNow() {
+    if (nowOpen) renderNowPages();
     const t = engine.queue[engine.index];
     if (nowOpen && t) {
       $('.now-art').src = t.artUrl || PLACEHOLDER;
@@ -1322,7 +1421,12 @@
     const d = el.dataset;
 
     if (d.nav) return go(d.nav);
-    if (d.tool) return go('tool', { toolId: d.tool });
+    if (d.tool) { if (nowOpen) closeNow(); return go('tool', { toolId: d.tool }); }
+    if (d.nowPage != null) {
+      const pages = $('[data-now-pages]');
+      pages.scrollTo({ left: Number(d.nowPage) * pages.clientWidth, behavior: 'smooth' });
+      return;
+    }
     if (d.editGear) { S.gearEdit = d.editGear; render(); $('[data-gear-form]').scrollIntoView({ block: 'start' }); return; }
     if (d.deleteGear) {
       S.gears = S.gears.filter((g) => g.id !== d.deleteGear);
@@ -1549,15 +1653,9 @@
       toast(el.checked ? '一時的にオフにしました（素通しで聴き比べられます）' : 'オンに戻しました');
       return;
     }
-    if ('gear' in d && el.type === 'radio') {
-      S.activeGear = d.gear;
-      store.set('activeGear', S.activeGear);
-      const g = activeGear();
-      if (g && g.hearingId && S.profiles.some((p) => p.id === g.hearingId)) applyProfile(g.hearingId);
-      updateNow();
-      toast(`機材を「${g.name}」に切り替えました`);
-      return render();
-    }
+    if ('gear' in d && el.type === 'radio') return selectGear(d.gear);
+    if ('npGear' in d) return selectGear(el.value);
+    if ('npProfile' in d) { applyProfile(el.value); if (S.view === 'tool') render(); return; }
     if ('hwMax' in d || 'hwStep' in d) {
       S.hw.max = Math.min(200, Math.max(10, Number($('#hw-max').value) || 100));
       S.hw.step = Math.min(3, Math.max(0.1, Number($('#hw-step').value) || 0.5));

@@ -136,7 +136,7 @@ img { max-width: 100%; }
   border-top: 1px solid var(--line);
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
-.tabbar .nav { display: grid; grid-template-columns: repeat(6, 1fr); height: var(--tab-h); padding: 0 4px; }
+.tabbar .nav { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); height: var(--tab-h); padding: 0 4px; }
 .tabbar .nav button {
   border: 0; background: none; color: var(--muted);
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
@@ -419,7 +419,7 @@ input[type="range"] { width: 100%; accent-color: var(--c-main); }
 .now-label { font: 500 11px/1 var(--f-mono); letter-spacing: .24em; color: var(--muted); }
 .spacer { width: 42px; }
 .now-disc-wrap {
-  position: relative; display: block; width: min(100%, 360px); margin: 14px auto 26px; padding: 18px;
+  position: relative; display: block; width: min(100%, 360px); margin: 0 auto; padding: 18px;
   border: 0; border-radius: 22px;
   background: var(--plinth);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .15), 0 22px 36px -22px rgb(var(--shadow-rgb) / .9);
@@ -477,6 +477,41 @@ input[type="range"] { width: 100%; accent-color: var(--c-main); }
 .queue { list-style: none; margin: 0; padding: 0; }
 .queue .row { grid-template-columns: 40px minmax(0, 1fr) auto; padding: 7px 4px; }
 .qart { width: 40px; aspect-ratio: 1; border-radius: 50%; object-fit: cover; border: 5px solid var(--vinyl); }
+
+/* ---------- 再生画面：ジャケットを横にスワイプするとツール ---------- */
+.now-stage { margin: 14px 0 22px; }
+.now-pages {
+  display: flex; overflow-x: auto; overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.now-pages::-webkit-scrollbar { display: none; }
+.now-tool-pages { display: contents; }
+.now-page { flex: 0 0 100%; min-width: 0; scroll-snap-align: center; scroll-snap-stop: always; display: grid; align-content: center; }
+.now-page .now-disc-wrap { margin: 0 auto; }
+.now-panel {
+  margin: 0 4px; padding: 16px; border-radius: var(--radius); background: var(--surface);
+  border: var(--card-border); box-shadow: var(--card-shadow);
+  display: grid; gap: 12px; align-content: start; min-height: min(360px, 100vw - 32px);
+}
+.now-panel .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.now-panel .panel-head strong { font: 600 18px/1.2 var(--f-display); display: flex; align-items: center; gap: 8px; }
+.now-panel .panel-head svg { width: 20px; height: 20px; color: var(--c-main); }
+.now-panel .eq-graph { height: 150px; }
+.now-panel .chips { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+.now-panel .chips::-webkit-scrollbar { display: none; }
+.now-panel .chip { flex: none; }
+.now-panel select {
+  width: 100%; padding: 10px 12px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--surface-2); color: var(--ink); font-size: 15px;
+}
+.now-panel .switch { padding: 4px 0; }
+.now-panel .more { justify-self: start; }
+.now-dots { display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+.now-dots button {
+  border: 0; background: var(--surface-2); color: var(--muted); border-radius: var(--r-pill);
+  padding: 4px 10px; font: 500 11px/1.3 var(--f-body); transition: background-color .15s, color .15s;
+}
+.now-dots button[aria-selected="true"] { background: var(--c-main); color: var(--on-color); }
+.now-dots:has(button:only-child) { display: none; }
 
 /* ---------- 波形シークバー ---------- */
 .wave-seek { position: relative; height: 44px; }
