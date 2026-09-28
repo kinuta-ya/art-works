@@ -111,7 +111,7 @@
     const g = canvas.getContext('2d');
     g.scale(dpr, dpr);
     const css = getComputedStyle(document.documentElement);
-    const grid = css.getPropertyValue('--line').trim() || '#333';
+    const grid = css.getPropertyValue('--grid').trim() || '#333';
     const muted = css.getPropertyValue('--muted').trim() || '#888';
     const range = opts.range || 15;
     const pad = { l: 30, r: 8, t: 8, b: 18 };

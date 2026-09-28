@@ -3,15 +3,18 @@
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-        <meta name="theme-color" content="#0e0d0c">
+        <meta name="theme-color" content="#1a0e36">
         <meta name="description" content="音に何も足さない、ダイナミックに再生する音楽プレイヤー（Web デモ）">
         <title>Tube Player</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&family=IBM+Plex+Mono:wght@400;700&display=swap">
         <link rel="stylesheet" href="css/style.css">
     </head>
     <body>
         <div class="app">
             <nav class="sidebar" aria-label="メインメニュー">
-                <div class="brand"><span class="brand-dot"></span>Tube Player</div>
+                <div class="brand"><span class="brand-dot"></span><span>Tube Player<small>BIT-PERFECT / M8T</small></span></div>
                 <div class="nav" data-navgroup></div>
             </nav>
 
@@ -19,7 +22,7 @@
 
             <div class="mini" id="mini" hidden>
                 <button class="mini-open" data-action="open-now" aria-label="再生画面を開く">
-                    <img class="mini-art" alt="">
+                    <span class="disc"><img class="mini-art" alt=""></span>
                     <span class="mini-text">
                         <span class="mini-title"></span>
                         <span class="mini-sub"></span>
@@ -37,14 +40,16 @@
         </div>
 
         <section class="now" id="now" aria-label="再生中" hidden>
-            <div class="now-bg"><img alt=""></div>
+            <div class="now-bg" aria-hidden="true"><div class="sun"></div><div class="floor"></div></div>
             <div class="now-inner">
                 <header class="now-head">
                     <button class="icon-btn" data-action="close-now" aria-label="閉じる" data-icon="down"></button>
-                    <span class="now-label">再生中</span>
+                    <span class="now-label">NOW PLAYING</span>
                     <span class="spacer"></span>
                 </header>
-                <img class="now-art" alt="">
+                <button class="now-disc-wrap" data-action="toggle" aria-label="再生/一時停止">
+                    <span class="disc"><img class="now-art" alt=""></span>
+                </button>
                 <div class="now-meta">
                     <div class="now-title"></div>
                     <div class="now-sub"></div>

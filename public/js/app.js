@@ -5,6 +5,7 @@
   // ---------- アイコン ----------
   const ICONS = {
     albums: '<rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/>',
+    genre: '<path d="M3 7h18M3 12h18M3 17h11"/><circle cx="19" cy="17" r="2.5"/>',
     songs: '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
     eq: '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
     ear: '<path d="M6 8.5a6 6 0 1 1 12 0c0 3.5-3 4.5-3 7.5a3.5 3.5 0 0 1-6.3 2.1"/><path d="M9 9a3 3 0 1 1 5 2.2c-1 .8-1 1.3-1 2.3"/>',
@@ -25,6 +26,7 @@
 
   const NAV = [
     { id: 'albums', label: 'アルバム', icon: 'albums' },
+    { id: 'genres', label: 'ジャンル', icon: 'genre' },
     { id: 'songs', label: '曲', icon: 'songs' },
     { id: 'eq', label: 'EQ', icon: 'eq' },
     { id: 'hearing', label: '聴力補正', icon: 'ear' },
@@ -44,6 +46,8 @@
     albumMap: new Map(),
     view: 'albums',
     albumKey: null,
+    genres: [],
+    genreName: null,
     search: '',
     shuffle: false,
     repeat: false,
@@ -138,6 +142,14 @@
     }
     S.albumMap = map;
     S.albums = [...map.values()].sort((a, b) => a.artist.localeCompare(b.artist, 'ja') || a.title.localeCompare(b.title, 'ja'));
+    // ジャンル：アルバム単位でまとめる（アルバムの最初の曲のジャンル）
+    const gmap = new Map();
+    for (const a of S.albums) {
+      a.genre = a.tracks[0].genre || '不明なジャンル';
+      if (!gmap.has(a.genre)) gmap.set(a.genre, { name: a.genre, albums: [] });
+      gmap.get(a.genre).albums.push(a);
+    }
+    S.genres = [...gmap.values()].sort((a, b) => (a.name === '不明なジャンル') - (b.name === '不明なジャンル') || a.name.localeCompare(b.name, 'ja'));
     S.tracks.sort((a, b) => {
       const A = S.albumMap.get(albumKeyOf(a)), B = S.albumMap.get(albumKeyOf(b));
       return S.albums.indexOf(A) - S.albums.indexOf(B) || A.tracks.indexOf(a) - B.tracks.indexOf(b);
@@ -239,7 +251,7 @@
   // ---------- 描画：ナビ ----------
   function renderNav() {
     for (const group of $$('[data-navgroup]')) {
-      group.innerHTML = NAV.map((n) => `<button data-nav="${n.id}" ${S.view === n.id || (n.id === 'albums' && S.view === 'album') ? 'aria-current="page"' : ''}>${icon(n.icon)}<span>${n.label}</span></button>`).join('');
+      group.innerHTML = NAV.map((n) => `<button data-nav="${n.id}" ${S.view === n.id || (n.id === 'albums' && S.view === 'album') || (n.id === 'genres' && S.view === 'genre') ? 'aria-current="page"' : ''}>${icon(n.icon)}<span>${n.label}</span></button>`).join('');
     }
   }
 
@@ -258,11 +270,27 @@
     $('#view').scrollTop = 0;
   }
 
+  const pad3 = (n) => String(n).padStart(3, '0');
+  const head = (tag, title, extra = '') => `
+    <div class="page-head">
+      <span><span class="tag">${esc(tag)}</span></span>
+      <div class="row-top"><h1>${esc(title)}</h1>${extra}</div>
+    </div>`;
+  const albumGrid = (albums) => `
+    <div class="albums">
+      ${albums.map((a) => `
+        <button class="album-card" data-album="${esc(a.key)}">
+          <span class="cover">${artHtml(a)}</span>
+          <div class="t">${esc(a.title)}</div>
+          <div class="a">${esc(a.artist)}</div>
+        </button>`).join('')}
+    </div>`;
+
   const libraryActions = () => `
     <div class="actions">
-      <button class="btn primary" data-action="pick-dir">${icon('folder')}フォルダーを読み込む</button>
-      <button class="btn" data-action="pick-files">${icon('plus')}ファイルを追加</button>
-      <button class="btn" data-action="demo">${icon('spark')}デモ音源</button>
+      <button class="btn press primary" data-action="pick-dir">${icon('folder')}フォルダーを読み込む</button>
+      <button class="btn press" data-action="pick-files">${icon('plus')}ファイルを追加</button>
+      <button class="btn press" data-action="demo">${icon('spark')}デモ音源</button>
     </div>`;
 
   const emptyLibrary = () => `
@@ -276,18 +304,44 @@
   // ---------- 描画：各画面 ----------
   const VIEWS = {
     albums() {
-      if (!S.albums.length) return `<h1>ライブラリ</h1>${emptyLibrary()}`;
+      if (!S.albums.length) return `${head('LIBRARY / EMPTY', 'ライブラリ')}${emptyLibrary()}`;
       return `
-        <div class="page-head"><h1>ライブラリ</h1>${libraryActions()}</div>
-        <p class="muted">${S.albums.length} アルバム ・ ${S.tracks.length} 曲</p>
-        <div class="albums">
-          ${S.albums.map((a) => `
-            <button class="album-card" data-album="${esc(a.key)}">
-              ${artHtml(a)}
-              <div class="t">${esc(a.title)}</div>
-              <div class="a">${esc(a.artist)}</div>
-            </button>`).join('')}
+        ${head(`LIBRARY / ${pad3(S.albums.length)} ALBUMS / ${pad3(S.tracks.length)} TRACKS`, 'ライブラリ', libraryActions())}
+        ${albumGrid(S.albums)}`;
+    },
+
+    genres() {
+      if (!S.genres.length) return `${head('GENRES / EMPTY', 'ジャンル')}${emptyLibrary()}`;
+      return `
+        ${head(`GENRES / ${pad3(S.genres.length)}`, 'ジャンル')}
+        <div class="genres">
+          ${S.genres.map((g) => {
+            const arts = [...new Set(g.albums.map((a) => a.artUrl).filter(Boolean))].slice(0, 4);
+            const thumb = arts.length >= 4
+              ? `<span class="genre-thumb">${arts.map((u) => `<img class="art" src="${esc(u)}" alt="" loading="lazy">`).join('')}</span>`
+              : `<span class="genre-thumb single">${arts.length ? `<img class="art" src="${esc(arts[0])}" alt="" loading="lazy">` : `<span class="art art-ph">${esc(g.name.trim()[0] || '♪')}</span>`}</span>`;
+            const n = g.albums.reduce((s, a) => s + a.tracks.length, 0);
+            return `
+              <button class="genre-card press" data-genre="${esc(g.name)}">
+                ${thumb}
+                <span class="genre-name"><strong>${esc(g.name)}</strong><span>${g.albums.length} ALBUMS / ${n} TRACKS</span></span>
+              </button>`;
+          }).join('')}
         </div>`;
+    },
+
+    genre() {
+      const g = S.genres.find((x) => x.name === S.genreName);
+      if (!g) return VIEWS.genres();
+      const n = g.albums.reduce((s, a) => s + a.tracks.length, 0);
+      return `
+        <button class="back press" data-nav="genres">${icon('back')}ジャンル</button>
+        ${head(`GENRE / ${g.albums.length} ALBUMS / ${n} TRACKS`, g.name, `
+          <div class="actions">
+            <button class="btn press primary" data-action="play-genre">${icon('play')}すべて再生</button>
+            <button class="btn press" data-action="shuffle-genre">${icon('shuffle')}シャッフル</button>
+          </div>`)}
+        ${albumGrid(g.albums)}`;
     },
 
     album() {
@@ -297,19 +351,20 @@
       const formats = [...new Set(a.tracks.map(fmtFormat))];
       const cur = engine.queue[engine.index];
       return `
-        <button class="back" data-nav="albums">${icon('back')}ライブラリ</button>
+        <button class="back press" data-nav="albums">${icon('back')}ライブラリ</button>
         <div class="album-hero">
-          ${artHtml(a)}
+          <span class="cover">${artHtml(a)}</span>
           <div>
-            <h1>${esc(a.title)}</h1>
+            <span class="tag">ALBUM${a.genre ? ' / ' + esc(a.genre) : ''}</span>
+            <h1 style="margin-top:10px">${esc(a.title)}</h1>
             <div class="artist">${esc(a.artist)}</div>
             <div class="meta">
               ${a.year ? `<span>${esc(a.year)}</span>・` : ''}<span>${a.tracks.length} 曲</span>・<span>${Math.round(total / 60)} 分</span>
               ${formats.slice(0, 2).map((f) => `<span class="fmt">${esc(f)}</span>`).join('')}
             </div>
             <div class="actions">
-              <button class="btn primary" data-action="play-album">${icon('play')}再生</button>
-              <button class="btn" data-action="shuffle-album">${icon('shuffle')}シャッフル</button>
+              <button class="btn press primary" data-action="play-album">${icon('play')}再生</button>
+              <button class="btn press" data-action="shuffle-album">${icon('shuffle')}シャッフル</button>
             </div>
           </div>
         </div>
@@ -327,9 +382,9 @@
     },
 
     songs() {
-      if (!S.tracks.length) return `<h1>曲</h1>${emptyLibrary()}`;
+      if (!S.tracks.length) return `${head('TRACKS / EMPTY', '曲')}${emptyLibrary()}`;
       return `
-        <h1>曲</h1>
+        ${head(`TRACKS / ${pad3(S.tracks.length)}`, '曲')}
         <input class="search" type="search" placeholder="曲名・アーティスト・アルバムで検索" value="${esc(S.search)}" data-search>
         <ol class="tracks" data-songlist>${songRows()}</ol>`;
     },
@@ -337,7 +392,7 @@
     eq() {
       const s = engine.s;
       return `
-        <h1>EQ</h1>
+        ${head('PARAMETRIC EQ / 32-BIT FLOAT', 'EQ')}
         <div class="card">
           <label class="switch"><span class="label">EQ を使う<small>オフのときは処理経路から完全に外れます（素通し）</small></span>
             <input type="checkbox" role="switch" data-eq-toggle ${s.eqEnabled ? 'checked' : ''}></label>
@@ -351,9 +406,9 @@
         </div>
         <h2>プリセット</h2>
         <div class="chips">
-          ${MP.eq.PRESETS.map((p) => `<button class="chip" data-preset="${p.id}" aria-pressed="${S.eqPreset === p.id}">${esc(p.name)}</button>`).join('')}
-          ${S.eqPreset === 'custom' ? '<button class="chip" aria-pressed="true">カスタム</button>' : ''}
-          ${S.eqPreset === 'autoeq' ? '<button class="chip" aria-pressed="true">AutoEQ</button>' : ''}
+          ${MP.eq.PRESETS.map((p) => `<button class="chip press" data-preset="${p.id}" aria-pressed="${S.eqPreset === p.id}">${esc(p.name)}</button>`).join('')}
+          ${S.eqPreset === 'custom' ? '<button class="chip press" aria-pressed="true">カスタム</button>' : ''}
+          ${S.eqPreset === 'autoeq' ? '<button class="chip press" aria-pressed="true">AutoEQ</button>' : ''}
         </div>
         <h2>バンド</h2>
         <div class="card bands" data-bands>${bandRows()}</div>
@@ -361,7 +416,7 @@
         <div class="card">
           <p class="note" style="margin-top:0">AutoEQ の <code>ParametricEQ.txt</code> の内容を貼り付けてください。お使いのイヤホン・ヘッドホン向けの補正カーブを適用できます。</p>
           <textarea data-autoeq placeholder="Preamp: -6.2 dB&#10;Filter 1: ON LSC Fc 105 Hz Gain 5.5 dB Q 0.70&#10;Filter 2: ON PK Fc 3000 Hz Gain -2.1 dB Q 1.41"></textarea>
-          <div class="actions" style="margin-top:10px"><button class="btn" data-action="import-autoeq">読み込む</button></div>
+          <div class="actions" style="margin-top:10px"><button class="btn press" data-action="import-autoeq">読み込む</button></div>
         </div>
         <p class="note">プリアンプは、ブーストした分だけ自動で音量を下げて音割れを防ぎます。処理は 32bit 浮動小数点です。</p>`;
     },
@@ -370,7 +425,7 @@
       if (S.test) return testView();
       const active = S.profiles.find((p) => p.id === S.activeProfile);
       return `
-        <h1>聴力補正</h1>
+        ${head('HEARING / NOT A MEDICAL TEST', '聴力補正')}
         <p class="muted">左右の耳それぞれで、周波数ごとに聞こえる最小の音量を測り、聞こえにくい帯域だけを少し持ち上げる補正カーブを作ります。</p>
         <div class="warning">医療用の検査ではありません。耳に違和感がある場合は専門医に相談してください。テスト音は小さい音から始まります。</div>
         <div class="card">
@@ -400,27 +455,27 @@
             <div class="profile">
               <input type="radio" name="profile" data-profile="${p.id}" ${p.id === S.activeProfile ? 'checked' : ''} aria-label="${esc(p.name)} を使う">
               <span class="name">${esc(p.name)}<small>${new Date(p.createdAt).toLocaleDateString('ja-JP')} ・ ${Object.keys(p.thresholds.L).length} 周波数</small></span>
-              <button class="btn" data-delete-profile="${p.id}">削除</button>
+              <button class="btn press" data-delete-profile="${p.id}">削除</button>
             </div>`).join('') : '<p class="muted" style="margin:0">まだありません。テストを受けると作成されます。</p>'}
         </div>
         <p class="note">イヤホン・ヘッドホンと、M8T のアンプモード（真空管 / トランジスタ）の組み合わせごとにプロファイルを作るのがおすすめです。</p>
         <div class="actions" style="margin-top:14px">
-          <button class="btn primary" data-action="start-test" data-test-kind="quick">クイックテスト（5 周波数）</button>
-          <button class="btn" data-action="start-test" data-test-kind="full">詳細テスト（9 周波数）</button>
+          <button class="btn press primary" data-action="start-test" data-test-kind="quick">クイックテスト（5 周波数）</button>
+          <button class="btn press" data-action="start-test" data-test-kind="full">詳細テスト（9 周波数）</button>
         </div>`;
     },
 
     settings() {
       const s = engine.s;
       return `
-        <h1>設定</h1>
+        ${head('SETTINGS', '設定')}
         <h2>ノンストップモード</h2>
         <div class="mode-cards" role="radiogroup">
-          <button class="mode-card" role="radio" aria-checked="${s.mode === 'gapless'}" data-action="mode" data-mode="gapless">
+          <button class="mode-card press" role="radio" aria-checked="${s.mode === 'gapless'}" data-action="mode" data-mode="gapless">
             <strong>ギャップレス</strong>
             <span>曲の継ぎ目に無音をはさまず、そのままつなぎます。音には一切手を加えません。ライブ盤やクラシック、コンセプトアルバム向け。</span>
           </button>
-          <button class="mode-card" role="radio" aria-checked="${s.mode === 'crossfade'}" data-action="mode" data-mode="crossfade">
+          <button class="mode-card press" role="radio" aria-checked="${s.mode === 'crossfade'}" data-action="mode" data-mode="crossfade">
             <strong>スマートクロスフェード</strong>
             <span>曲の頭と終わりの無音を飛ばし、フェードアウトを検出して長さを合わせ、等パワーカーブで重ねます。シャッフルやプレイリスト向け。</span>
           </button>
@@ -530,9 +585,9 @@
           <p style="margin-top:0">静かな場所で、いつものイヤホン・ヘッドホンを付けてください。M8T のアンプモードもいつもの設定にします。</p>
           <p>「基準音」を鳴らし、<strong>小さいけれどはっきり聞こえる</strong>音量に DAP のボリュームを合わせてください。テスト中はボリュームを変えないでください。</p>
           <div class="actions">
-            <button class="btn" data-action="ref-tone">${icon('play')}基準音を鳴らす</button>
-            <button class="btn primary" data-action="begin-test">テストを始める</button>
-            <button class="btn" data-action="cancel-test">やめる</button>
+            <button class="btn press" data-action="ref-tone">${icon('play')}基準音を鳴らす</button>
+            <button class="btn press primary" data-action="begin-test">テストを始める</button>
+            <button class="btn press" data-action="cancel-test">やめる</button>
           </div>
         </div>`;
     }
@@ -546,8 +601,8 @@
           </label>
           <p class="note" style="margin-top:0">例：「M8T 真空管 + 〇〇（イヤホン名）」</p>
           <div class="actions">
-            <button class="btn primary" data-action="save-profile">保存して使う</button>
-            <button class="btn" data-action="cancel-test">保存しない</button>
+            <button class="btn press primary" data-action="save-profile">保存して使う</button>
+            <button class="btn press" data-action="cancel-test">保存しない</button>
           </div>
         </div>`;
     }
@@ -561,12 +616,12 @@
         <div class="muted" data-test-status>ピッ・ピッ・ピッという音が聞こえましたか？</div>
       </div>
       <div class="test-buttons">
-        <button class="btn" data-action="answer" data-heard="0">聞こえない</button>
-        <button class="btn primary" data-action="answer" data-heard="1">聞こえた</button>
+        <button class="btn press" data-action="answer" data-heard="0">聞こえない</button>
+        <button class="btn press primary" data-action="answer" data-heard="1">聞こえた</button>
       </div>
       <div class="actions" style="justify-content:center;margin-top:12px">
-        <button class="btn" data-action="replay-tone">もう一度鳴らす</button>
-        <button class="btn" data-action="cancel-test">中止</button>
+        <button class="btn press" data-action="replay-tone">もう一度鳴らす</button>
+        <button class="btn press" data-action="cancel-test">中止</button>
       </div>`;
   }
 
@@ -613,7 +668,9 @@
       el.innerHTML = icon(playing ? 'pause' : 'play');
       el.setAttribute('aria-label', playing ? '一時停止' : '再生');
     }
-    $('#now').classList.toggle('paused', !playing);
+    const spinning = engine.state === 'playing';
+    document.body.classList.toggle('is-playing', spinning);
+    $('#now').classList.toggle('is-playing', spinning);
   }
 
   function updateMini() {
@@ -665,7 +722,7 @@
     const upcoming = engine.queue.slice(engine.index + 1, engine.index + 31);
     $('.queue').innerHTML = upcoming.map((t, i) => `
       <li><button class="row thumb" data-queue-jump="${engine.index + 1 + i}">
-        ${t.artUrl ? `<img class="art" src="${esc(t.artUrl)}" alt="">` : '<span class="art art-ph">♪</span>'}
+        <img class="qart" src="${esc(t.artUrl || PLACEHOLDER)}" alt="">
         <span class="main"><div class="title">${esc(t.title)}</div><div class="sub">${esc(t.artist)}</div></span>
         <span class="dur">${fmtTime(t.duration)}</span>
       </button></li>`).join('') || '<li class="muted">ありません</li>';
@@ -675,7 +732,6 @@
     const t = engine.queue[engine.index];
     if (nowOpen && t) {
       $('.now-art').src = t.artUrl || PLACEHOLDER;
-      $('.now-bg img').src = t.artUrl || PLACEHOLDER;
       $('.now-title').textContent = t.title;
       $('.now-sub').textContent = `${t.artist} — ${t.album}`;
     }
@@ -695,7 +751,7 @@
   let seeking = false;
   function updateTime() {
     const pos = engine.position(), dur = engine.duration();
-    $('.mini-progress span').style.width = dur ? (pos / dur * 100) + '%' : '0';
+    $('.mini-progress span').style.transform = `scaleX(${dur ? Math.min(1, pos / dur) : 0})`;
     if (!nowOpen) return;
     if (!seeking) $('.seek').value = dur ? Math.round(pos / dur * 1000) : 0;
     $('.t-pos').textContent = fmtTime(seeking ? $('.seek').value / 1000 * dur : pos);
@@ -764,6 +820,7 @@
 
     if (d.nav) return go(d.nav);
     if (d.album) return go('album', { albumKey: d.album });
+    if (d.genre) return go('genre', { genreName: d.genre });
     if (d.playAlbumIndex != null) {
       const a = S.albumMap.get(S.albumKey);
       return playList(a.tracks, Number(d.playAlbumIndex));
@@ -806,6 +863,13 @@
         if (d.action === 'shuffle-album' && !S.shuffle) S.shuffle = true;
         if (d.action === 'play-album' && S.shuffle) S.shuffle = false;
         playList(a.tracks, d.action === 'shuffle-album' ? Math.floor(Math.random() * a.tracks.length) : 0);
+        return;
+      }
+      case 'play-genre': case 'shuffle-genre': {
+        const g = S.genres.find((x) => x.name === S.genreName);
+        const list = g.albums.flatMap((a) => a.tracks);
+        S.shuffle = d.action === 'shuffle-genre';
+        playList(list, S.shuffle ? Math.floor(Math.random() * list.length) : 0);
         return;
       }
       case 'mode':

@@ -30,6 +30,26 @@
   const utf16le = new TextDecoder('utf-16le');
   const utf16be = new TextDecoder('utf-16be');
 
+  // ID3v1 のジャンル番号（0〜79 の標準分）
+  const ID3_GENRES = ['Blues', 'Classic Rock', 'Country', 'Dance', 'Disco', 'Funk', 'Grunge', 'Hip-Hop', 'Jazz', 'Metal',
+    'New Age', 'Oldies', 'Other', 'Pop', 'R&B', 'Rap', 'Reggae', 'Rock', 'Techno', 'Industrial',
+    'Alternative', 'Ska', 'Death Metal', 'Pranks', 'Soundtrack', 'Euro-Techno', 'Ambient', 'Trip-Hop', 'Vocal', 'Jazz+Funk',
+    'Fusion', 'Trance', 'Classical', 'Instrumental', 'Acid', 'House', 'Game', 'Sound Clip', 'Gospel', 'Noise',
+    'Alternative Rock', 'Bass', 'Soul', 'Punk', 'Space', 'Meditative', 'Instrumental Pop', 'Instrumental Rock', 'Ethnic', 'Gothic',
+    'Darkwave', 'Techno-Industrial', 'Electronic', 'Pop-Folk', 'Eurodance', 'Dream', 'Southern Rock', 'Comedy', 'Cult', 'Gangsta',
+    'Top 40', 'Christian Rap', 'Pop/Funk', 'Jungle', 'Native American', 'Cabaret', 'New Wave', 'Psychedelic', 'Rave', 'Showtunes',
+    'Trailer', 'Lo-Fi', 'Tribal', 'Acid Punk', 'Acid Jazz', 'Polka', 'Retro', 'Musical', 'Rock & Roll', 'Hard Rock'];
+
+  // "(17)" "17" "(17)Rock" などを名前に直す
+  function genreName(v) {
+    if (v == null) return null;
+    const s = String(v).split('\0')[0].trim();
+    const m = s.match(/^\((\d+)\)(.*)$/);
+    if (m) return m[2].trim() || ID3_GENRES[+m[1]] || null;
+    if (/^\d+$/.test(s)) return ID3_GENRES[+s] || null;
+    return s || null;
+  }
+
   function parseNum(v) {
     if (v == null) return null;
     const n = parseInt(String(v).split('/')[0], 10);
@@ -92,6 +112,7 @@
         case 'TRACKNUMBER': meta.track = parseNum(val); break;
         case 'DISCNUMBER': meta.disc = parseNum(val); break;
         case 'DATE': case 'YEAR': meta.year = meta.year || String(val).slice(0, 4); break;
+        case 'GENRE': meta.genre = meta.genre || genreName(val); break;
         case 'REPLAYGAIN_TRACK_GAIN': meta.rgTrack = parseFloat(val); break;
         case 'REPLAYGAIN_ALBUM_GAIN': meta.rgAlbum = parseFloat(val); break;
       }
@@ -152,6 +173,7 @@
         case 'TRCK': meta.track = parseNum(text()); break;
         case 'TPOS': meta.disc = parseNum(text()); break;
         case 'TDRC': case 'TYER': meta.year = text().slice(0, 4); break;
+        case 'TCON': meta.genre = genreName(text()); break;
         case 'APIC': {
           if (meta.picture) break;
           let p = 1;
@@ -260,6 +282,8 @@
               case '©alb': meta.album = str(); break;
               case 'aART': meta.albumArtist = str(); break;
               case '©day': meta.year = str().slice(0, 4); break;
+              case '©gen': meta.genre = str(); break;
+              case 'gnre': meta.genre = meta.genre || ID3_GENRES[u16be(val, 0) - 1] || null; break;
               case 'trkn': meta.track = u16be(val, 2) || null; break;
               case 'disk': meta.disc = u16be(val, 2) || null; break;
               case 'covr': {
@@ -305,6 +329,7 @@
             else if (sid === 'IPRD') meta.album = val;
             else if (sid === 'ITRK') meta.track = parseNum(val);
             else if (sid === 'ICRD') meta.year = val.slice(0, 4);
+            else if (sid === 'IGNR') meta.genre = genreName(val);
             o += 8 + slen + (slen & 1);
           }
         }
@@ -325,7 +350,7 @@
       path,
       dir: parts.slice(0, -1).join('/'),
       title: null, artist: null, album: null, albumArtist: null,
-      track: null, disc: null, year: null,
+      track: null, disc: null, year: null, genre: null,
       sampleRate: null, bitDepth: null, channels: null, duration: null,
       codec: ext(fileName).toUpperCase(), lossless: null, picture: null,
     };
@@ -347,6 +372,7 @@
       else meta.title = base;
     }
     if (!meta.album) meta.album = parts.length >= 2 ? parts[parts.length - 2] : '不明なアルバム';
+    if (!meta.genre) meta.genre = '不明なジャンル';
     if (!meta.artist) meta.artist = parts.length >= 3 ? parts[parts.length - 3] : '不明なアーティスト';
     return meta;
   }

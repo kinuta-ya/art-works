@@ -107,7 +107,7 @@
 
     // --- ギャップレス・テスト ---
     {
-      const art = makeArt(200, 250, 'Gapless');
+      const art = makeArt(185, 275, 'Gapless');
       const total = 45, parts = 3;
       let pad = null;
       const getPad = () => (pad = pad || renderPad(total));
@@ -121,12 +121,12 @@
           makeBuffer: () => toBuffer(getPad(), from, to),
         });
       }
-      albums.push({ album: 'ギャップレス・テスト', artist: 'デモ音源', year: '2026', art, tracks });
+      albums.push({ album: 'ギャップレス・テスト', artist: 'デモ音源', year: '2026', genre: 'Ambient', art, tracks });
     }
 
     // --- クロスフェード・テスト ---
     {
-      const art = makeArt(30, 350, 'Crossfade');
+      const art = makeArt(320, 255, 'Crossfade');
       const defs = [
         { title: 'Amber Tube', bpm: 96, root: 57, pattern: [0, 7, 12, 16, 12, 7], seed: 1 },
         { title: 'Night Walk', bpm: 120, root: 62, pattern: [0, 3, 7, 10, 15, 10, 7, 3], seed: 2 },
@@ -137,7 +137,7 @@
         makeBuffer: () => toBuffer(renderArp(24, d.bpm, d.root, d.pattern, d.seed)),
       }));
       // 別々の曲を集めたミックス扱い（同じアルバムでもクロスフェードする）
-      albums.push({ album: 'クロスフェード・テスト', artist: 'デモ音源', year: '2026', art, tracks, mix: true });
+      albums.push({ album: 'クロスフェード・テスト', artist: 'デモ音源', year: '2026', art, tracks, mix: true, genre: 'Synthwave' });
     }
 
     const out = [];
@@ -145,7 +145,7 @@
       for (const t of a.tracks) {
         out.push({
           title: t.title, artist: a.artist, album: a.album, albumArtist: a.artist,
-          track: t.track, disc: 1, year: a.year,
+          track: t.track, disc: 1, year: a.year, genre: a.genre,
           sampleRate: SR, bitDepth: 32, channels: 2, duration: t.duration,
           codec: '合成音', lossless: true, demo: true,
           artUrl: a.art, makeBuffer: t.makeBuffer,
