@@ -512,7 +512,7 @@
               <button class="btn press" data-delete-profile="${p.id}">削除</button>
             </div>`).join('') : '<p class="muted" style="margin:0">まだありません。テストを受けると作成されます。</p>'}
         </div>
-        <p class="note">イヤホン・ヘッドホンと、M8T のアンプモード（真空管 / トランジスタ）の組み合わせごとにプロファイルを作るのがおすすめです。</p>
+        <p class="note">イヤホン・ヘッドホンと、M8T の出力モード（トランジスタ / 三極管 / ウルトラリニア）の組み合わせごとにプロファイルを作るのがおすすめです。</p>
         <div class="actions" style="margin-top:14px">
           <button class="btn press primary" data-action="start-test" data-test-kind="quick">クイックテスト（5 周波数）</button>
           <button class="btn press" data-action="start-test" data-test-kind="full">詳細テスト（9 周波数）</button>
@@ -663,7 +663,7 @@
         <h1>聴力テスト</h1>
         <div class="card">
           <div class="card-head"><span>1. 音量の準備</span></div>
-          <p style="margin-top:0">静かな場所で、いつものイヤホン・ヘッドホンを付けてください。M8T のアンプモードもいつもの設定にします。</p>
+          <p style="margin-top:0">静かな場所で、いつものイヤホン・ヘッドホンを付けてください。M8T の出力モード（トランジスタ / 三極管 / ウルトラリニア）とゲインも、いつもの設定にします。</p>
           <p>「基準音」を鳴らし、<strong>小さいけれどはっきり聞こえる</strong>音量に DAP のボリュームを合わせてください。テスト中はボリュームを変えないでください。</p>
           <div class="actions">
             <button class="btn press" data-action="ref-tone">${icon('play')}基準音を鳴らす</button>
