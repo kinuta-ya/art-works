@@ -295,7 +295,7 @@
     });
   }
 
-  async function importFiles(fileList) {
+  async function importFiles(fileList, opts = {}) {
     const files = [...fileList];
     const audio = files.filter((f) => MP.metadata.isAudio(f.name));
     const pathOf = (f) => f.webkitRelativePath || f.name;
@@ -319,7 +319,8 @@
     const coverUrls = new Map();
     const coverFor = (dir) => {
       if (!covers.has(dir)) return null;
-      if (!coverUrls.has(dir)) coverUrls.set(dir, URL.createObjectURL(covers.get(dir).file));
+      const cf = covers.get(dir).file;
+      if (!coverUrls.has(dir)) coverUrls.set(dir, cf.url || URL.createObjectURL(cf)); // アプリでは SD カードのファイルを直接表示
       return coverUrls.get(dir);
     };
 
@@ -354,8 +355,10 @@
         }
       } catch (e) { console.warn('CUE シートを読めませんでした', cf.name, e); }
     }
+    // 読み直し（アプリで同じフォルダーを読み込むとき）は、デモ以外の曲を入れ替える
+    if (opts.replace) S.tracks = S.tracks.filter((t) => t.demo);
     addTracks(out);
-    toast(`${out.length} 曲を追加しました${cueCount ? `（CUE シート ${cueCount} 件を曲ごとに分けました）` : ''}`);
+    toast(`${out.length} 曲を${opts.replace ? '読み込みました' : '追加しました'}${cueCount ? `（CUE シート ${cueCount} 件を曲ごとに分けました）` : ''}`);
     render();
     offerResume();
   }
@@ -601,7 +604,8 @@
 
   const libraryActions = () => `
     <div class="actions">
-      <button class="btn press primary" data-action="pick-dir">${icon('folder')}フォルダーを読み込む</button>
+      <button class="btn press primary" data-action="pick-dir">${icon('folder')}${MP.android ? 'SD カードのフォルダーを選ぶ' : 'フォルダーを読み込む'}</button>
+      ${MP.android && MP.android.hasFolder() ? `<button class="btn press" data-action="rescan">${icon('loop')}読み直す</button>` : ''}
       <button class="btn press" data-action="pick-files">${icon('plus')}ファイルを追加</button>
       <button class="btn press" data-action="demo">${icon('spark')}デモ音源</button>
     </div>`;
@@ -609,7 +613,7 @@
   const emptyLibrary = () => `
     <div class="empty">
       <h2>ライブラリは空です</h2>
-      <p>SD カードの音楽フォルダーを選ぶと、タグを読み取ってアルバムごとに並べます。<br>
+      <p>SD カードの音楽フォルダーを選ぶと、タグを読み取ってアルバムごとに並べます。${MP.android ? '選んだフォルダーは覚えておき、次からは起動したときに自動で読み込みます。' : ''}<br>
       音源が手元に無い場合は「デモ音源」で、ギャップレスとスマートクロスフェードを試せます。</p>
       ${libraryActions()}
     </div>`;
@@ -768,8 +772,18 @@
             <p>設定でツールを有効にすると、ここに並びます。</p>
             <div class="actions"><button class="btn press primary" data-nav="settings">設定を開く</button></div>
           </div>`}
-        <h2>Web デモについて</h2>
+        ${MP.android ? `
+        <h2>試作アプリについて</h2>
         <div class="card">
+          <p style="margin-top:0">Tube Player 試作版 ${esc(MP.android.version())}。画面は Web 版と同じで、SD カードの読み込みと本体のボタンを Android 側で受け持っています。</p>
+          <ul class="muted" style="margin:0;padding-left:1.2em">
+            <li>音はアプリ内のブラウザ（WebView）から Android の標準の出力に渡しています。M8T の Global Lossless Output でビットパーフェクトになるかは、まだ確認していません。</li>
+            <li>画面を消したり、ほかのアプリに切り替えたりしたときに再生が続くかは、端末の省電力の設定によります。</li>
+            <li>ALAC と DSD はまだ再生できません。</li>
+          </ul>
+        </div>` : ''}
+        <h2${MP.android ? ' hidden' : ''}>Web デモについて</h2>
+        <div class="card"${MP.android ? ' hidden' : ''}>
           <p style="margin-top:0">これは M8T 向け Android アプリの画面と機能の試作です。ブラウザでは次の限界があります。</p>
           <ul class="muted" style="margin:0;padding-left:1.2em">
             <li>出力は OS のミキサーを通るため、ビットパーフェクトにはなりません。</li>
@@ -2063,7 +2077,8 @@
     }
 
     switch (d.action) {
-      case 'pick-dir': return $('#pick-dir').click();
+      case 'pick-dir': return MP.android ? MP.android.pick() : $('#pick-dir').click();
+      case 'rescan': return MP.android && MP.android.rescan();
       case 'pick-files': return $('#pick-files').click();
       case 'demo': return addDemo();
       case 'toggle': return engine.toggle();
@@ -2368,5 +2383,16 @@
   setPlayIcons();
   render();
 
-  MP.app = { engine, S, addDemo, playList };
+  // 戻るボタン（アプリ）：開いているものを閉じる。閉じるものが無ければ false
+  function back() {
+    if (nowOpen) { closeNow(); return true; }
+    if (S.test) { endTest(); return true; }
+    if (S.view === 'tool') { go('tools'); return true; }
+    if (S.view === 'album') { go('albums'); return true; }
+    if (S.view === 'genre') { go('genres'); return true; }
+    if (S.view !== 'albums') { go('albums'); return true; }
+    return false;
+  }
+
+  MP.app = { engine, S, addDemo, playList, importFiles, toast, back };
 })(window.MP = window.MP || {});
