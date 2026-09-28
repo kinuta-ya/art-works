@@ -339,7 +339,7 @@ input[type="range"] { width: 100%; accent-color: var(--c-main); }
 .row {
   width: 100%; display: grid; align-items: center; gap: 12px;
   grid-template-columns: 30px minmax(0, 1fr) auto;
-  border: 0; background: none; padding: 10px 10px; text-align: left; color: var(--ink); border-radius: 12px;
+  border: 0; background: none; padding: 12px 10px; text-align: left; color: var(--ink); border-radius: 12px;
   transition: background-color .12s;
 }
 .row:hover { background: var(--surface-2); }
@@ -348,6 +348,10 @@ input[type="range"] { width: 100%; accent-color: var(--c-main); }
 .row .title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row .sub { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row .dur { color: var(--muted); font: 12px/1 var(--f-mono); }
+/* 番号・曲名・時間の文字の見た目の中心をそろえる（行の上下の余白を字の高さで切る） */
+.row .num, .row .dur, .row .title { text-box: trim-both cap alphabetic; }
+.row .title { padding: 5px 0; }
+.row .title + .sub { margin-top: 1px; }
 .row.playing .title { color: var(--c-main); font-weight: 700; }
 .row.playing .num { color: transparent; position: relative; }
 .row.playing .num::after {
