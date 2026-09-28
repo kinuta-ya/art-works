@@ -109,7 +109,9 @@
   function artHtml(album, cls = 'art') {
     if (album && album.artUrl) return `<img class="${cls}" src="${esc(album.artUrl)}" alt="" loading="lazy">`;
     const ch = (album && album.title ? album.title.trim()[0] : '♪') || '♪';
-    return `<span class="${cls} art-ph" aria-hidden="true">${esc(ch)}</span>`;
+    let h = 0;
+    for (const c of (album && album.title) || '') h = (h * 31 + c.charCodeAt(0)) >>> 0;
+    return `<span class="${cls} art-ph tone-${h % 4}" aria-hidden="true">${esc(ch)}</span>`;
   }
 
   // ---------- ライブラリ ----------
@@ -273,7 +275,7 @@
   const pad3 = (n) => String(n).padStart(3, '0');
   const head = (tag, title, extra = '') => `
     <div class="page-head">
-      <span><span class="tag">${esc(tag)}</span></span>
+      <span><span class="tag">${esc(tag.replace(/ \/ /g, ' · '))}</span></span>
       <div class="row-top"><h1>${esc(title)}</h1>${extra}</div>
     </div>`;
   const albumGrid = (albums) => `

@@ -7,23 +7,22 @@
   const SR = 44100;
   const NOTE = (m) => 440 * 2 ** ((m - 69) / 12);
 
-  function makeArt(hue1, hue2, label) {
+  // ミッドセンチュリーのレコードジャケット風：ベタ塗りの地に円とアーチ
+  function makeArt(bg, c1, c2, label) {
     const c = document.createElement('canvas');
     c.width = c.height = 480;
     const g = c.getContext('2d');
-    const grad = g.createLinearGradient(0, 0, 480, 480);
-    grad.addColorStop(0, `hsl(${hue1} 70% 45%)`);
-    grad.addColorStop(1, `hsl(${hue2} 60% 18%)`);
-    g.fillStyle = grad;
+    g.fillStyle = bg;
     g.fillRect(0, 0, 480, 480);
-    g.globalAlpha = 0.18;
-    g.strokeStyle = '#fff';
-    g.lineWidth = 2;
-    for (let r = 40; r < 700; r += 36) { g.beginPath(); g.arc(380, 380, r, 0, Math.PI * 2); g.stroke(); }
-    g.globalAlpha = 1;
-    g.fillStyle = 'rgba(255,255,255,.92)';
-    g.font = '600 44px system-ui, sans-serif';
-    g.fillText(label, 36, 420);
+    g.fillStyle = c1;
+    g.beginPath(); g.arc(330, 170, 120, 0, Math.PI * 2); g.fill();
+    g.fillStyle = c2;
+    g.beginPath(); g.moveTo(40, 480); g.lineTo(40, 330); g.arc(150, 330, 110, Math.PI, 0); g.lineTo(260, 480); g.fill();
+    g.strokeStyle = '#2b2118'; g.lineWidth = 6;
+    for (let i = 0; i < 5; i++) { g.beginPath(); g.moveTo(290, 330 + i * 22); g.lineTo(440, 330 + i * 22); g.stroke(); }
+    g.fillStyle = '#fbf5e8';
+    g.font = '600 46px Jost, system-ui, sans-serif';
+    g.fillText(label, 36, 80);
     return c.toDataURL('image/png');
   }
 
@@ -107,7 +106,7 @@
 
     // --- ギャップレス・テスト ---
     {
-      const art = makeArt(185, 275, 'Gapless');
+      const art = makeArt('#1e7471', '#e1a42a', '#d45f2a', 'Gapless');
       const total = 45, parts = 3;
       let pad = null;
       const getPad = () => (pad = pad || renderPad(total));
@@ -126,7 +125,7 @@
 
     // --- クロスフェード・テスト ---
     {
-      const art = makeArt(320, 255, 'Crossfade');
+      const art = makeArt('#d45f2a', '#f2e8d3', '#1e7471', 'Crossfade');
       const defs = [
         { title: 'Amber Tube', bpm: 96, root: 57, pattern: [0, 7, 12, 16, 12, 7], seed: 1 },
         { title: 'Night Walk', bpm: 120, root: 62, pattern: [0, 3, 7, 10, 15, 10, 7, 3], seed: 2 },
