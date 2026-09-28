@@ -231,7 +231,7 @@
 
   function addDemo() {
     addTracks(MP.demoTracks.create());
-    toast('デモアルバムを 2 枚追加しました');
+    toast('デモアルバムを 5 枚追加しました');
     render();
   }
 

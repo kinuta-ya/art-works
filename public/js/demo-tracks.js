@@ -118,6 +118,20 @@
       albums.push({ album: 'クロスフェード・テスト', artist: 'デモ音源', year: '2026', tracks, mix: true, genre: 'Jazz' });
     }
 
+    // --- ジャンル別ジャケットの見本（短い曲 2 曲ずつ） ---
+    const samples = [
+      { album: 'Loud Machines', artist: 'The Amps', genre: 'Rock', bpm: 140, root: 52, pattern: [0, 7, 12, 7, 10, 7] },
+      { album: 'Night Drive', artist: 'Grid Unit', genre: 'Synthwave', bpm: 118, root: 57, pattern: [0, 12, 7, 12, 3, 12, 7, 12] },
+      { album: 'Borough Tales', artist: 'MC Brick', genre: 'Hip-Hop', bpm: 90, root: 50, pattern: [0, 3, 0, 5, 7, 5] },
+    ];
+    samples.forEach((sm, k) => {
+      const tracks = [1, 2].map((n) => ({
+        title: `${sm.album} ${n === 1 ? 'I' : 'II'}`, track: n, duration: 16,
+        makeBuffer: () => toBuffer(renderArp(16, sm.bpm, sm.root + (n - 1) * 2, sm.pattern, 10 + k * 2 + n)),
+      }));
+      albums.push({ album: sm.album, artist: sm.artist, year: '2026', genre: sm.genre, tracks, mix: true });
+    });
+
     const out = [];
     for (const a of albums) {
       for (const t of a.tracks) {
