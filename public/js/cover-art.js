@@ -24,13 +24,13 @@
     { id: 'electronic', words: ['electro', 'techno', 'house', 'trance', 'edm', 'dance', 'synth', 'dubstep', 'drum', 'idm', 'rave', 'club', 'テクノ', 'エレクトロ'],
       images: ['genre-electronic-1.webp'], bg: '#0d0b1e', shapes: ['#29e6ff', '#ff4fd8'], band: ['#0d0b1e', '#1b1740'], text: '#29e6ff', font: 'monospace' },
     { id: 'ambient', words: ['ambient', 'new age', 'chill', 'lo-fi', 'lofi', 'meditat', 'drone', 'space', 'アンビエント', 'ヒーリング'],
-      images: [], bg: '#9fb7c4', shapes: ['#e9dfd0', '#6d8fa3'], band: ['#e9dfd0', '#c7d6de'], text: '#2e3f4a', font: 'sans-serif' },
+      images: ['genre-ambient-1.webp'], bg: '#9fb7c4', shapes: ['#e9dfd0', '#6d8fa3'], band: ['#e9dfd0', '#c7d6de'], text: '#2e3f4a', font: 'sans-serif' },
     { id: 'rock', words: ['rock', 'metal', 'punk', 'grunge', 'hardcore', 'alternative', 'emo', 'shoegaze', 'ロック', 'メタル', 'パンク'],
       images: ['genre-rock-1.webp'], bg: '#c8261d', shapes: ['#111111', '#f2e6d0'], band: ['#111111', '#c8261d'], text: '#f2e6d0', font: 'sans-serif' },
     { id: 'folk', words: ['folk', 'acoustic', 'country', 'singer-songwriter', 'bluegrass', 'フォーク'],
       images: [], bg: '#ece2cc', shapes: ['#2f5a3c', '#a4452b'], band: ['#2f5a3c', '#ece2cc'], text: '#ece2cc', font: 'serif' },
     { id: 'pop', words: ['pop', 'idol', 'kayo', 'ポップ', 'アイドル', '歌謡'],
-      images: [], bg: '#ffd23f', shapes: ['#ff4f81', '#2b7bff'], band: ['#ff4f81', '#2b7bff'], text: '#ffffff', font: 'sans-serif' },
+      images: ['genre-pop-1.webp'], bg: '#ffd23f', shapes: ['#ff4f81', '#2b7bff'], band: ['#ff4f81', '#2b7bff'], text: '#ffffff', font: 'sans-serif' },
   ];
   const OTHER = { id: 'other', images: [], bg: '#d9d2c5', shapes: ['#5b6770', '#b07a4f'], band: ['#3e464c', '#d9d2c5'], text: '#f4efe6', font: 'sans-serif' };
 

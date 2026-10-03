@@ -364,8 +364,9 @@
   }
 
   function addDemo() {
-    addTracks(MP.demoTracks.create());
-    toast('デモアルバムを 5 枚追加しました');
+    const demo = MP.demoTracks.create();
+    addTracks(demo);
+    toast(`デモアルバムを ${new Set(demo.map((t) => t.album)).size} 枚追加しました`);
     render();
     offerResume();
   }

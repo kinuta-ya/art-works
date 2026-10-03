@@ -124,6 +124,8 @@
       { album: 'Night Drive', artist: 'Grid Unit', genre: 'Synthwave', bpm: 118, root: 57, pattern: [0, 12, 7, 12, 3, 12, 7, 12],
         lyrics: '[00:01.20]夜の高速　ライトが流れる\n[00:04.00]グリッドの上を　どこまでも\n[00:06.80]ラジオから　知らない歌\n[00:09.60]窓を少しだけ　開けてみる\n[00:12.40]（間奏）' },
       { album: 'Borough Tales', artist: 'MC Brick', genre: 'Hip-Hop', bpm: 90, root: 50, pattern: [0, 3, 0, 5, 7, 5] },
+      { album: 'Lake Haze', artist: 'Still Water', genre: 'Ambient', bpm: 48, root: 55, pattern: [0, 7, 14, 12, 7, 19] },
+      { album: 'Candy Cat', artist: 'Sunny Paws', genre: 'J-Pop', bpm: 128, root: 64, pattern: [0, 4, 7, 12, 7, 4, 9, 7] },
     ];
     samples.forEach((sm, k) => {
       const tracks = [1, 2].map((n) => ({
