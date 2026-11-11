@@ -1,0 +1,735 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>イヤホン特性アナライザー</title>
+<style>
+:root{
+  --bg:#f4f4f7; --panel:#ffffff; --ink:#1b1b22; --muted:#666a78; --line:#d9dae2;
+  --plot:#ffffff; --grid:#e3e4ea; --grid2:#f0f0f4; --axis:#7a7d8a;
+  --accent:#d6336c; --accent-ink:#ffffff; --btn:#ecedf2; --btn-on:#d6336c; --btn-on-ink:#fff;
+  --live:#1b1b22; --peak:#d6336c; --valley:#2f7fd1; --warn:#c2410c;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0e0f13; --panel:#17181e; --ink:#ecedf2; --muted:#9a9db0; --line:#2a2c35;
+    --plot:#08090c; --grid:#262833; --grid2:#16171d; --axis:#8b8fa3;
+    --accent:#ff5c93; --accent-ink:#1a0710; --btn:#23252e; --btn-on:#ff5c93; --btn-on-ink:#1a0710;
+    --live:#f4f4f7; --peak:#ff5c93; --valley:#5aa9ff; --warn:#ff9d5c;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0e0f13; --panel:#17181e; --ink:#ecedf2; --muted:#9a9db0; --line:#2a2c35;
+  --plot:#08090c; --grid:#262833; --grid2:#16171d; --axis:#8b8fa3;
+  --accent:#ff5c93; --accent-ink:#1a0710; --btn:#23252e; --btn-on:#ff5c93; --btn-on-ink:#1a0710;
+  --live:#f4f4f7; --peak:#ff5c93; --valley:#5aa9ff; --warn:#ff9d5c;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  padding:max(12px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) 32px max(16px,env(safe-area-inset-left))}
+.wrap{max-width:1100px;margin:0 auto}
+header{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+h1{font-size:17px;margin:0;font-weight:700;letter-spacing:.02em}
+#status{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+#status.warn{color:var(--warn)}
+.graph{position:relative;background:var(--plot);border:1px solid var(--line);border-radius:10px;overflow:hidden;touch-action:none}
+canvas{display:block;width:100%;height:min(58vh,520px);min-height:220px}
+#readout{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;min-height:24px;font-size:12px;color:var(--muted);padding:6px 2px;font-variant-numeric:tabular-nums}
+#readout b{color:var(--ink);font-weight:600}
+#readout .sw{display:inline-block;width:10px;height:3px;border-radius:2px;vertical-align:middle;margin-right:4px}
+.bar{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:4px 0 12px}
+@media (min-width:720px){.bar{grid-template-columns:repeat(8,1fr)}}
+button,select,input[type=text],input[type=number]{font:inherit;color:inherit}
+button{background:var(--btn);border:1px solid var(--line);border-radius:8px;padding:9px 6px;min-height:40px;cursor:pointer;line-height:1.2;
+  -webkit-tap-highlight-color:transparent;user-select:none}
+button.on{background:var(--btn-on);color:var(--btn-on-ink);border-color:transparent;font-weight:600}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent;font-weight:700}
+button:disabled{opacity:.45}
+.panels{display:grid;gap:12px}
+@media (min-width:900px){.panels{grid-template-columns:1fr 1fr}}
+fieldset{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px 12px;margin:0;min-width:0}
+legend{font-weight:700;font-size:13px;padding:0 4px}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0}
+.row>label{min-width:84px;color:var(--muted);font-size:12px}
+.seg{display:inline-flex;flex-wrap:wrap;gap:4px}
+.seg button{min-height:34px;padding:6px 10px}
+select,input[type=text],input[type=number]{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 8px;min-height:36px;max-width:100%}
+input[type=number]{width:84px}
+input[type=range]{flex:1;min-width:120px;accent-color:var(--accent)}
+.val{font-variant-numeric:tabular-nums;min-width:72px;font-size:12px}
+.note{font-size:12px;color:var(--muted);margin:6px 0 0}
+.traces{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:6px}
+.traces li{display:grid;grid-template-columns:auto auto 1fr auto auto;gap:6px;align-items:center}
+.traces input[type=color]{width:30px;height:30px;border:none;background:none;padding:0}
+.traces input[type=text]{min-width:0;width:100%}
+.traces button{min-height:32px;padding:4px 8px;font-size:12px}
+.empty{color:var(--muted);font-size:12px}
+details{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:12px}
+summary{font-weight:700;cursor:pointer}
+details h3{font-size:13px;margin:14px 0 4px}
+details p,details li{font-size:13px;color:var(--ink)}
+details ul,details ol{padding-left:20px;margin:4px 0}
+.meter{flex:1;height:8px;background:var(--btn);border-radius:4px;overflow:hidden;min-width:100px}
+.meter i{display:block;height:100%;width:0;background:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>イヤホン特性アナライザー</h1>
+  <div id="status">停止中 — 「開始」を押すとマイク入力の分析を始めます</div>
+</header>
+
+<div class="graph"><canvas id="cv"></canvas></div>
+<div id="readout"></div>
+
+<div class="bar">
+  <button id="bStart" class="primary">開始</button>
+  <button id="bPause" disabled>一時停止</button>
+  <button id="bReset">リセット</button>
+  <button id="bPeak">ピーク保持</button>
+  <button id="bValley">谷保持</button>
+  <button id="bMarkers" class="on">マーカー</button>
+  <button id="bAuto">自動範囲</button>
+  <button id="bGen">発振器 OFF</button>
+</div>
+
+<div class="panels">
+  <fieldset>
+    <legend>表示</legend>
+    <div class="row"><label>平均化</label><div class="seg" id="segAvg">
+      <button data-v="off">なし</button><button data-v="fast">速い</button><button data-v="slow">遅い</button><button data-v="inf">累積</button></div></div>
+    <div class="row"><label>平滑化</label><div class="seg" id="segSmooth">
+      <button data-v="0">なし</button><button data-v="24">1/24oct</button><button data-v="12">1/12oct</button><button data-v="6">1/6oct</button><button data-v="3">1/3oct</button></div></div>
+    <div class="row"><label>聴感補正</label><div class="seg" id="segW">
+      <button data-v="Z">フラット</button><button data-v="A">A特性</button></div></div>
+    <div class="row"><label>基準合わせ</label><div class="seg" id="segNorm">
+      <button data-v="0">そのまま</button><button data-v="1">1kHzで揃える</button></div></div>
+    <div class="row"><label>上限 dB</label><input type="number" id="nTop" step="5"><label style="min-width:auto">表示幅 dB</label><input type="number" id="nRange" step="10" min="10"></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>入力</legend>
+    <div class="row"><label>デバイス</label><select id="selDev" style="flex:1"><option value="">既定の入力</option></select></div>
+    <div class="row"><label>モード</label><div class="seg" id="segMode">
+      <button data-v="single">1ch（マイクのみ）</button><button data-v="tf">2ch（基準付き）</button></div></div>
+    <div class="row"><label>測定ch</label><div class="seg" id="segCh">
+      <button data-v="L">1ch / L</button><button data-v="R">2ch / R</button></div></div>
+    <div class="row"><label>FFTサイズ</label><div class="seg" id="segFft">
+      <button data-v="8192">8192</button><button data-v="16384">16384</button><button data-v="32768">32768</button></div></div>
+    <div class="row"><label>オフセット</label><input type="number" id="nOffset" step="1"><span class="note" style="margin:0">dB（マイク校正値を入れると絶対値に近づきます）</span></div>
+    <div class="row"><label>入力レベル</label><div class="meter"><i id="meterBar"></i></div><span class="val" id="meterTxt">—</span></div>
+    <p class="note" id="chInfo"></p>
+  </fieldset>
+
+  <fieldset>
+    <legend>発振器（テスト信号）</legend>
+    <div class="row"><label>信号</label><div class="seg" id="segGen">
+      <button data-v="pink">ピンクノイズ</button><button data-v="white">ホワイトノイズ</button><button data-v="sweep">スイープ</button><button data-v="sine">正弦波</button></div></div>
+    <div class="row"><label>レベル</label><input type="range" id="rLevel" min="-60" max="-10" step="1"><span class="val" id="vLevel"></span></div>
+    <div class="row" id="rowFreq"><label>周波数</label><input type="range" id="rFreq" min="0" max="1000" step="1"><span class="val" id="vFreq"></span></div>
+    <div class="row" id="rowSweep"><label>スイープ時間</label><div class="seg" id="segSweepT">
+      <button data-v="2">2秒</button><button data-v="5">5秒</button><button data-v="10">10秒</button></div></div>
+    <div class="row"><label>出力ch</label><div class="seg" id="segOut">
+      <button data-v="LR">両方</button><button data-v="L">Lのみ</button><button data-v="R">Rのみ</button></div></div>
+    <p class="note">最初は小さい音量から。イヤホンを耳から外し、測定器具（カプラー）に付けた状態で鳴らしてください。</p>
+  </fieldset>
+
+  <fieldset>
+    <legend>保存した曲線</legend>
+    <div class="row"><input type="text" id="tName" placeholder="名前（例：ATLAS）" style="flex:1;min-width:120px"><button id="bStore" class="primary" style="min-width:96px">保存</button></div>
+    <p class="note" id="storeNote">ピーク保持がONのときはピーク曲線を、OFFのときは現在の曲線を保存します。</p>
+    <ul class="traces" id="traceList"></ul>
+    <div class="row" style="margin-top:10px">
+      <button id="bCsv">CSV書き出し</button><button id="bJson">JSON書き出し</button><button id="bImport">JSON読み込み</button>
+      <input type="file" id="fImport" accept=".json,application/json" hidden>
+    </div>
+  </fieldset>
+</div>
+
+<details>
+  <summary>使い方と測定のしかた</summary>
+  <h3>基本（1ch・マイクのみ）</h3>
+  <ol>
+    <li>イヤホンを測定器具（カプラー：イヤホンとマイクを密着させる筒など）に取り付けます。</li>
+    <li>「開始」を押してマイクを許可します。</li>
+    <li>発振器でピンクノイズを鳴らし、平均化「遅い」か「累積」にすると安定した特性が出ます。</li>
+    <li>スイープ＋「ピーク保持」でも測れます。1〜2往復ぶん鳴らすと線が描き上がります。</li>
+    <li>名前を付けて「保存」すると、別のイヤホンと重ねて比べられます。</li>
+  </ol>
+  <p>iPhoneでは、有線やBluetoothのイヤホンをつなぐと入力がイヤホン側のマイクに切り替わる場合があります。
+  その場合は、別の端末（PCなど）で信号を鳴らし、iPhoneで測る方法が確実です。</p>
+  <h3>2ch（基準付き）— USBオーディオインターフェースを使う方法</h3>
+  <ul>
+    <li>インターフェースの入力1にマイク、入力2に出力信号をケーブルで戻します（ループバック）。</li>
+    <li>「2ch（基準付き）」を選ぶと、マイクの音 ÷ 出力信号 を表示します。信号の偏りや再生機器の癖が打ち消され、イヤホン（＋マイク）の特性だけが残ります。</li>
+    <li>電気回路そのもの（ネットワークのコンデンサー・抵抗など）を測るときは、出力 → 回路 → 入力1、出力 → 入力2 とつなぎます。</li>
+    <li>iPhone/ブラウザによっては2ch入力が1chとして扱われることがあります。入力欄の表示で確認してください。</li>
+  </ul>
+  <h3>補正</h3>
+  <p>保存した曲線の「補正」を押すと、その曲線を差し引いて表示します。マイクやインターフェースの特性、
+  あるいは基準にしたいイヤホンの特性を差し引いて比べるときに使います。</p>
+  <h3>注意</h3>
+  <ul>
+    <li>マイクを使うため、ページは https か localhost で開く必要があります。</li>
+    <li>dB の値はデジタル入力のフルスケール基準（dBFS）です。音圧の絶対値ではありません。オフセットで調整できます。</li>
+    <li>保存した曲線はこのブラウザ内にだけ残ります。端末を移すときはJSONで書き出して読み込んでください。</li>
+  </ul>
+</details>
+</div>
+
+<script>
+(() => {
+'use strict';
+// ---------- 定数・周波数グリッド ----------
+const N = 480, FMIN = 20, FMAX = 20000;
+const RATIO = Math.pow(FMAX / FMIN, 1 / (N - 1));
+const gridF = new Float64Array(N);
+for (let i = 0; i < N; i++) gridF[i] = FMIN * Math.pow(FMAX / FMIN, i / (N - 1));
+const I1K = Math.round((N - 1) * Math.log(1000 / FMIN) / Math.log(FMAX / FMIN));
+function aWeight(f) {
+  const f2 = f * f;
+  const ra = (12194 ** 2 * f2 * f2) / ((f2 + 20.6 ** 2) * Math.sqrt((f2 + 107.7 ** 2) * (f2 + 737.9 ** 2)) * (f2 + 12194 ** 2));
+  return 20 * Math.log10(ra) + 2.0;
+}
+const AW = gridF.map(aWeight);
+const PALETTE = ['#4fb3f7', '#ffb347', '#6cc24a', '#b388ff', '#26c6da', '#ef5350', '#e6c229', '#8d6e63'];
+
+// ---------- 保存 ----------
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+};
+const DEF = { avg: 'slow', smooth: 6, weight: 'Z', norm: 0, top: -10, range: 90, mode: 'single', ch: 'L', fft: 16384,
+  offset: 0, gen: 'pink', level: -30, freq: 1000, sweepT: 5, out: 'LR', markers: true, deviceId: '' };
+const S = Object.assign({}, DEF, store.get('efa.settings', {}));
+let traces = store.get('efa.traces', []).filter(t => t && Array.isArray(t.data) && t.data.length === N);
+let corrId = store.get('efa.corr', null);
+const saveSettings = () => store.set('efa.settings', S);
+const saveTraces = () => { store.set('efa.traces', traces); store.set('efa.corr', corrId); };
+
+// ---------- 状態 ----------
+let ac = null, stream = null, srcNode = null, splitter = null, anA = null, anB = null, sink = null;
+let running = false, paused = false, chCount = 0;
+let nBins = 0, dbBuf, powM, powR, avgM, avgR, prefix, avgN = 0, tbuf;
+let rk0, rk1, rt, rmode, df = 0;
+const live = new Float64Array(N).fill(NaN);
+const peak = new Float64Array(N).fill(-Infinity);
+const valley = new Float64Array(N).fill(Infinity);
+let peakOn = false, valleyOn = false, cursorI = null;
+let meterRms = -Infinity, meterPk = -Infinity;
+
+const $ = id => document.getElementById(id);
+const cv = $('cv'), g = cv.getContext('2d');
+const statusEl = $('status');
+function setStatus(t, warn) { statusEl.textContent = t; statusEl.classList.toggle('warn', !!warn); }
+
+// ---------- 音声入力 ----------
+function ensureCtx() {
+  if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
+  return ac;
+}
+async function startInput() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    setStatus('このブラウザではマイクを使えません（https で開いているか確認してください）', true); return;
+  }
+  ensureCtx();
+  try { await ac.resume(); } catch (e) {}
+  stopInput();
+  const c = { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: { ideal: 2 } };
+  if (S.deviceId) c.deviceId = { exact: S.deviceId };
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: c });
+  } catch (e) {
+    if (S.deviceId) { S.deviceId = ''; saveSettings(); return startInput(); }
+    setStatus('マイクを開けませんでした: ' + (e.message || e.name), true); return;
+  }
+  const tr = stream.getAudioTracks()[0];
+  const st = tr && tr.getSettings ? tr.getSettings() : {};
+  chCount = st.channelCount || 1;
+  srcNode = ac.createMediaStreamSource(stream);
+  splitter = ac.createChannelSplitter(2);
+  srcNode.connect(splitter);
+  anA = ac.createAnalyser(); anB = ac.createAnalyser();
+  for (const a of [anA, anB]) { a.fftSize = S.fft; a.smoothingTimeConstant = 0; }
+  splitter.connect(anA, 0); splitter.connect(anB, 1);
+  sink = ac.createGain(); sink.gain.value = 0;
+  anA.connect(sink); anB.connect(sink); sink.connect(ac.destination);
+  running = true; paused = false;
+  resetMeasure();
+  await listDevices();
+  updateChInfo(tr ? tr.label : '');
+  setStatus(`測定中 — ${Math.round(ac.sampleRate / 100) / 10} kHz / FFT ${S.fft}`);
+  syncUI();
+}
+function stopInput() {
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  for (const n of [srcNode, splitter, anA, anB, sink]) { try { n && n.disconnect(); } catch (e) {} }
+  stream = srcNode = splitter = anA = anB = sink = null;
+  running = false;
+}
+function updateChInfo(label) {
+  let t = `入力: ${label || '（名前なし）'} — ${chCount}ch`;
+  if (S.mode === 'tf' && chCount < 2) t += '。2ch入力が得られていないため、基準付きモードは使えません。';
+  if (S.mode === 'single' && S.ch === 'R' && chCount < 2) t += '。1ch入力なので「1ch / L」を選んでください。';
+  $('chInfo').textContent = t;
+}
+async function listDevices() {
+  try {
+    const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput');
+    const sel = $('selDev');
+    sel.innerHTML = '<option value="">既定の入力</option>' + devs.filter(d => d.deviceId && d.deviceId !== 'default')
+      .map((d, i) => `<option value="${d.deviceId}">${escapeHtml(d.label || '入力 ' + (i + 1))}</option>`).join('');
+    sel.value = S.deviceId || '';
+  } catch (e) {}
+}
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+// ---------- 解析 ----------
+function ensureBuffers(n) {
+  if (n === nBins && df === ac.sampleRate / (2 * n)) return;
+  nBins = n; df = ac.sampleRate / (2 * n);
+  dbBuf = new Float32Array(n); powM = new Float64Array(n); powR = new Float64Array(n);
+  avgM = new Float64Array(n); avgR = new Float64Array(n); prefix = new Float64Array(n + 1);
+  tbuf = new Float32Array(n * 2);
+  buildRanges();
+  avgN = 0;
+}
+function buildRanges() {
+  if (!nBins) return;
+  rk0 = new Int32Array(N); rk1 = new Int32Array(N); rt = new Float32Array(N); rmode = new Uint8Array(N);
+  const half = Math.max(Math.sqrt(RATIO), S.smooth ? Math.pow(2, 1 / (2 * S.smooth)) : 0);
+  for (let i = 0; i < N; i++) {
+    const f = gridF[i];
+    if (f >= df * (nBins - 1)) { rmode[i] = 2; continue; } // ナイキスト超え
+    const kl = Math.max(1, Math.ceil(f / half / df)), kh = Math.min(nBins - 1, Math.floor(f * half / df));
+    if (kh > kl) { rmode[i] = 0; rk0[i] = kl; rk1[i] = kh; }
+    else { const x = f / df, k = Math.floor(x); rmode[i] = 1; rk0[i] = k; rt[i] = x - k; }
+  }
+}
+function toPow(db, p) { for (let i = 0; i < db.length; i++) p[i] = Math.pow(10, Math.max(db[i], -200) / 10); }
+function accumulate(avg, p) {
+  if (avgN === 0 || S.avg === 'off') { avg.set(p); return; }
+  if (S.avg === 'inf') { const k = 1 / (avgN + 1); for (let i = 0; i < p.length; i++) avg[i] += (p[i] - avg[i]) * k; return; }
+  const a = S.avg === 'fast' ? 0.75 : 0.94;
+  for (let i = 0; i < p.length; i++) avg[i] = a * avg[i] + (1 - a) * p[i];
+}
+function gridify(p, out) {
+  prefix[0] = 0;
+  for (let k = 0; k < nBins; k++) prefix[k + 1] = prefix[k] + p[k];
+  for (let i = 0; i < N; i++) {
+    let v;
+    if (rmode[i] === 2) { out[i] = NaN; continue; }
+    if (rmode[i] === 0) v = (prefix[rk1[i] + 1] - prefix[rk0[i]]) / (rk1[i] - rk0[i] + 1);
+    else { const k = rk0[i], t = rt[i]; v = p[k] * (1 - t) + p[Math.min(k + 1, nBins - 1)] * t; }
+    out[i] = 10 * Math.log10(Math.max(v, 1e-30));
+  }
+}
+const gM = new Float64Array(N), gR = new Float64Array(N);
+function corrTrace() { return corrId ? traces.find(t => t.id === corrId) : null; }
+function process() {
+  const measAn = S.ch === 'L' ? anA : anB, refAn = S.ch === 'L' ? anB : anA;
+  ensureBuffers(measAn.frequencyBinCount);
+  measAn.getFloatFrequencyData(dbBuf); toPow(dbBuf, powM); accumulate(avgM, powM);
+  const tf = S.mode === 'tf';
+  if (tf) { refAn.getFloatFrequencyData(dbBuf); toPow(dbBuf, powR); accumulate(avgR, powR); }
+  avgN++;
+  gridify(avgM, gM);
+  if (tf) gridify(avgR, gR);
+  const corr = corrTrace();
+  for (let i = 0; i < N; i++) {
+    let v = tf ? gM[i] - gR[i] : gM[i] + (S.weight === 'A' ? AW[i] : 0) + S.offset;
+    if (corr) v -= corr.data[i];
+    live[i] = v;
+    if (Number.isFinite(v)) { if (v > peak[i]) peak[i] = v; if (v < valley[i]) valley[i] = v; }
+  }
+  // レベルメーター
+  measAn.getFloatTimeDomainData(tbuf);
+  let s = 0, pk = 0;
+  for (let i = 0; i < tbuf.length; i++) { const x = tbuf[i]; s += x * x; if (Math.abs(x) > pk) pk = Math.abs(x); }
+  meterRms = 10 * Math.log10(s / tbuf.length + 1e-20); meterPk = 20 * Math.log10(pk + 1e-10);
+}
+function resetMeasure() {
+  avgN = 0; live.fill(NaN); peak.fill(-Infinity); valley.fill(Infinity);
+}
+
+// ---------- 発振器 ----------
+let gen = null; // {src, out, gL, gR, timer}
+const noiseCache = {};
+function makeNoise(kind) {
+  if (noiseCache[kind] && noiseCache[kind].sampleRate === ac.sampleRate) return noiseCache[kind];
+  const len = ac.sampleRate * 8, buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
+  let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+  for (let i = 0; i < len; i++) {
+    const w = Math.random() * 2 - 1;
+    if (kind === 'white') { d[i] = w; continue; }
+    b0 = 0.99886 * b0 + w * 0.0555179; b1 = 0.99332 * b1 + w * 0.0750759; b2 = 0.96900 * b2 + w * 0.1538520;
+    b3 = 0.86650 * b3 + w * 0.3104856; b4 = 0.55000 * b4 + w * 0.5329522; b5 = -0.7616 * b5 - w * 0.0168980;
+    d[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362; b6 = w * 0.115926;
+  }
+  // RMS を -18 dBFS に揃える
+  let s = 0; for (let i = 0; i < len; i++) s += d[i] * d[i];
+  const k = 0.125 / Math.sqrt(s / len); for (let i = 0; i < len; i++) d[i] *= k;
+  // ループのつなぎ目のクリックを防ぐ短いフェード
+  const fl = 256; for (let i = 0; i < fl; i++) { const t = i / fl; d[i] *= t; d[len - 1 - i] *= t; }
+  return (noiseCache[kind] = buf);
+}
+function genGain() {
+  // レベル = RMS dBFS
+  const lin = Math.pow(10, S.level / 20);
+  return (S.gen === 'pink' || S.gen === 'white') ? lin / 0.125 : lin * Math.SQRT2;
+}
+function sliderToFreq(v) { return FMIN * Math.pow(FMAX / FMIN, v / 1000); }
+function freqToSlider(f) { return Math.round(1000 * Math.log(f / FMIN) / Math.log(FMAX / FMIN)); }
+async function genStart() {
+  ensureCtx(); try { await ac.resume(); } catch (e) {}
+  genStop();
+  const out = ac.createGain(); out.gain.value = genGain();
+  const merger = ac.createChannelMerger(2), gL = ac.createGain(), gR2 = ac.createGain();
+  gL.gain.value = S.out === 'R' ? 0 : 1; gR2.gain.value = S.out === 'L' ? 0 : 1;
+  let src, timer = null;
+  if (S.gen === 'pink' || S.gen === 'white') { src = ac.createBufferSource(); src.buffer = makeNoise(S.gen); src.loop = true; }
+  else {
+    src = ac.createOscillator(); src.type = 'sine'; src.frequency.value = S.gen === 'sine' ? S.freq : FMIN;
+    if (S.gen === 'sweep') {
+      const sched = () => {
+        const t = ac.currentTime + 0.02;
+        src.frequency.cancelScheduledValues(t);
+        src.frequency.setValueAtTime(FMIN, t);
+        src.frequency.exponentialRampToValueAtTime(FMAX, t + S.sweepT);
+      };
+      sched(); timer = setInterval(sched, S.sweepT * 1000 + 30);
+    }
+  }
+  src.connect(gL); src.connect(gR2); gL.connect(merger, 0, 0); gR2.connect(merger, 0, 1);
+  merger.connect(out); out.connect(ac.destination);
+  src.start();
+  gen = { src, out, gL, gR: gR2, timer, merger };
+  syncUI();
+}
+function genStop() {
+  if (!gen) return;
+  clearInterval(gen.timer);
+  try { gen.src.stop(); } catch (e) {}
+  for (const n of [gen.src, gen.gL, gen.gR, gen.merger, gen.out]) { try { n.disconnect(); } catch (e) {} }
+  gen = null; syncUI();
+}
+function genUpdate() {
+  if (!gen) return;
+  const t = ac.currentTime;
+  gen.out.gain.setTargetAtTime(genGain(), t, 0.02);
+  gen.gL.gain.setTargetAtTime(S.out === 'R' ? 0 : 1, t, 0.01);
+  gen.gR.gain.setTargetAtTime(S.out === 'L' ? 0 : 1, t, 0.01);
+  if (S.gen === 'sine' && gen.src.frequency) gen.src.frequency.setTargetAtTime(S.freq, t, 0.01);
+}
+
+// ---------- 描画 ----------
+let colors = {};
+function readColors() {
+  const cs = getComputedStyle(document.documentElement);
+  for (const k of ['plot', 'grid', 'grid2', 'axis', 'live', 'peak', 'valley', 'ink', 'muted', 'accent']) colors[k] = cs.getPropertyValue('--' + k).trim();
+}
+readColors();
+try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors); } catch (e) {}
+
+let W = 0, H = 0, dpr = 1;
+const PAD = { l: 40, r: 10, t: 10, b: 22 };
+function resize() {
+  dpr = window.devicePixelRatio || 1;
+  const r = cv.getBoundingClientRect();
+  if (Math.round(r.width * dpr) !== cv.width || Math.round(r.height * dpr) !== cv.height) {
+    cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
+  }
+  W = r.width; H = r.height;
+}
+const xOf = i => PAD.l + (i / (N - 1)) * (W - PAD.l - PAD.r);
+const xOfF = f => PAD.l + (Math.log(f / FMIN) / Math.log(FMAX / FMIN)) * (W - PAD.l - PAD.r);
+const yOf = v => PAD.t + ((S.top - v) / S.range) * (H - PAD.t - PAD.b);
+const fmtF = f => f >= 1000 ? (f >= 10000 ? (f / 1000).toFixed(1) : (f / 1000).toFixed(2)) + 'k' : Math.round(f) + '';
+function normOf(arr) { if (!S.norm) return 0; const v = arr[I1K]; return Number.isFinite(v) ? v : 0; }
+
+function drawGrid() {
+  const pw = W - PAD.l - PAD.r, ph = H - PAD.t - PAD.b;
+  g.fillStyle = colors.plot; g.fillRect(0, 0, W, H);
+  g.lineWidth = 1;
+  // 周波数
+  for (let dec = 10; dec <= 10000; dec *= 10) for (let m = 1; m <= 9; m++) {
+    const f = dec * m; if (f < FMIN || f > FMAX) continue;
+    const x = Math.round(xOfF(f)) + 0.5;
+    g.strokeStyle = (m === 1) ? colors.grid : colors.grid2;
+    g.beginPath(); g.moveTo(x, PAD.t); g.lineTo(x, PAD.t + ph); g.stroke();
+  }
+  g.fillStyle = colors.axis; g.font = '11px -apple-system,system-ui,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'top';
+  const labels = pw > 520 ? [20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000] : [20, 100, 1000, 10000];
+  for (const f of labels) {
+    const x = xOfF(f), t = f >= 1000 ? f / 1000 + 'k' : f + '';
+    g.fillText(t, Math.min(Math.max(x, PAD.l + 8), W - PAD.r - 10), PAD.t + ph + 5);
+  }
+  // dB
+  const step = S.range <= 40 ? 5 : 10;
+  g.textAlign = 'right'; g.textBaseline = 'middle';
+  for (let v = Math.ceil((S.top - S.range) / step) * step; v <= S.top; v += step) {
+    const y = Math.round(yOf(v)) + 0.5;
+    g.strokeStyle = (v % (step * 2) === 0) ? colors.grid : colors.grid2;
+    g.beginPath(); g.moveTo(PAD.l, y); g.lineTo(PAD.l + pw, y); g.stroke();
+    g.fillText(String(v), PAD.l - 5, y);
+  }
+  g.save(); g.textAlign = 'left'; g.textBaseline = 'top'; g.fillStyle = colors.axis;
+  g.fillText(S.mode === 'tf' ? 'dB（測定/基準）' : (S.weight === 'A' ? 'dB(A)' : 'dB'), PAD.l + 4, PAD.t + 2);
+  g.restore();
+}
+function drawCurve(arr, color, width, dash) {
+  const off = normOf(arr);
+  g.save();
+  g.beginPath(); g.rect(PAD.l, PAD.t, W - PAD.l - PAD.r, H - PAD.t - PAD.b); g.clip();
+  g.strokeStyle = color; g.lineWidth = width; g.lineJoin = 'round'; g.setLineDash(dash || []);
+  g.beginPath();
+  let pen = false;
+  for (let i = 0; i < N; i++) {
+    const v = arr[i];
+    if (!Number.isFinite(v)) { pen = false; continue; }
+    const x = xOf(i), y = yOf(v - off);
+    if (pen) g.lineTo(x, y); else { g.moveTo(x, y); pen = true; }
+  }
+  g.stroke(); g.restore();
+}
+function findPeaks(arr) {
+  const res = [], K = 8, P = 40;
+  for (let i = K; i < N - K; i++) {
+    const v = arr[i]; if (!Number.isFinite(v)) continue;
+    let ok = true;
+    for (let j = i - K; j <= i + K; j++) if (arr[j] > v) { ok = false; break; }
+    if (!ok) continue;
+    let lmin = v, rmin = v;
+    for (let j = Math.max(0, i - P); j < i; j++) if (arr[j] < lmin) lmin = arr[j];
+    for (let j = i + 1; j <= Math.min(N - 1, i + P); j++) if (arr[j] < rmin) rmin = arr[j];
+    const prom = v - Math.max(lmin, rmin);
+    if (prom >= 3) res.push({ i, v, prom });
+  }
+  return res.sort((a, b) => b.prom - a.prom).slice(0, 3);
+}
+function drawMarkers(arr, color) {
+  const off = normOf(arr);
+  g.save(); g.fillStyle = color; g.font = '600 12px -apple-system,system-ui,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'bottom';
+  for (const p of findPeaks(arr)) {
+    const x = xOf(p.i), y = yOf(p.v - off) - 6;
+    if (y < PAD.t + 16) continue;
+    g.beginPath(); g.moveTo(x, y); g.lineTo(x - 4, y - 6); g.lineTo(x + 4, y - 6); g.closePath(); g.fill();
+    g.fillText(fmtF(gridF[p.i]) + 'Hz', x, y - 7);
+  }
+  g.restore();
+}
+function mainCurve() { return peakOn ? peak : live; }
+function hasData(arr) { for (let i = 0; i < N; i += 20) if (Number.isFinite(arr[i])) return true; return false; }
+function draw() {
+  resize();
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawGrid();
+  for (const t of traces) if (t.visible) drawCurve(t.data, t.color, 1.6);
+  if (running || hasData(live)) {
+    if (valleyOn) drawCurve(valley, colors.valley, 1.2, [4, 3]);
+    if (peakOn) drawCurve(peak, colors.peak, 1.6);
+    drawCurve(live, colors.live, peakOn ? 1 : 1.8);
+    if (S.markers && hasData(mainCurve())) drawMarkers(mainCurve(), peakOn ? colors.peak : colors.live);
+  }
+  if (cursorI !== null) {
+    const x = Math.round(xOf(cursorI)) + 0.5;
+    g.save(); g.strokeStyle = colors.accent; g.setLineDash([3, 3]); g.beginPath(); g.moveTo(x, PAD.t); g.lineTo(x, H - PAD.b); g.stroke(); g.restore();
+  }
+}
+function updateReadout() {
+  const el = $('readout');
+  if (cursorI === null) {
+    el.innerHTML = '<span>グラフをタップ（クリック）すると、その周波数の値を表示します</span>';
+    return;
+  }
+  const i = cursorI, f = gridF[i];
+  const item = (name, color, arr) => {
+    const v = arr[i]; if (!Number.isFinite(v)) return '';
+    return `<span><i class="sw" style="background:${color}"></i>${escapeHtml(name)} <b>${(v - normOf(arr)).toFixed(1)} dB</b></span>`;
+  };
+  let h = `<span><b>${fmtF(f)}Hz</b></span>`;
+  h += item('現在', colors.live, live);
+  if (peakOn) h += item('ピーク', colors.peak, peak);
+  if (valleyOn) h += item('谷', colors.valley, valley);
+  for (const t of traces) if (t.visible) h += item(t.name, t.color, t.data);
+  h += '<button id="bCurX" style="min-height:26px;padding:2px 8px;font-size:12px">✕</button>';
+  el.innerHTML = h;
+  $('bCurX').onclick = () => { cursorI = null; updateReadout(); };
+}
+function setCursorFromEvent(e) {
+  const r = cv.getBoundingClientRect();
+  const x = e.clientX - r.left;
+  const t = (x - PAD.l) / (r.width - PAD.l - PAD.r);
+  cursorI = Math.max(0, Math.min(N - 1, Math.round(t * (N - 1))));
+}
+let dragging = false;
+cv.addEventListener('pointerdown', e => { dragging = true; try { cv.setPointerCapture(e.pointerId); } catch (_) {} setCursorFromEvent(e); updateReadout(); });
+cv.addEventListener('pointermove', e => { if (dragging || e.pointerType === 'mouse') { if (e.pointerType === 'mouse' && !dragging && cursorI === null) return; if (dragging) { setCursorFromEvent(e); updateReadout(); } } });
+cv.addEventListener('pointerup', () => { dragging = false; });
+cv.addEventListener('pointercancel', () => { dragging = false; });
+
+// ---------- ループ ----------
+let frameN = 0;
+function frame() {
+  if (running && !paused && anA) process();
+  draw();
+  if ((frameN++ % 6) === 0) {
+    if (cursorI !== null) updateReadout();
+    if (running) {
+      const pct = Math.max(0, Math.min(100, (meterRms + 80) / 80 * 100));
+      $('meterBar').style.width = pct + '%';
+      $('meterTxt').textContent = Number.isFinite(meterRms) ? `${meterRms.toFixed(1)} dBFS` + (meterPk > -0.5 ? ' 過大!' : '') : '—';
+      $('meterTxt').style.color = meterPk > -0.5 ? 'var(--warn)' : '';
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+// ---------- 曲線の保存 ----------
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+function nextColor() { const used = new Set(traces.map(t => t.color)); return PALETTE.find(c => !used.has(c)) || PALETTE[traces.length % PALETTE.length]; }
+function storeTrace() {
+  const src = mainCurve();
+  if (!hasData(src)) { setStatus('保存する曲線がありません。先に「開始」で測定してください。', true); return; }
+  const name = $('tName').value.trim() || `曲線 ${traces.length + 1}`;
+  traces.push({ id: uid(), name, color: nextColor(), visible: true, mode: S.mode,
+    data: Array.from(src, v => Number.isFinite(v) ? Math.round(v * 100) / 100 : null), created: new Date().toISOString() });
+  traces.forEach(t => t.data = t.data.map(v => v === null ? NaN : v));
+  $('tName').value = '';
+  saveTraces(); renderTraces();
+}
+function renderTraces() {
+  const ul = $('traceList');
+  if (!traces.length) { ul.innerHTML = '<li class="empty">まだありません。測定中に名前を入れて「保存」してください。</li>'; return; }
+  ul.innerHTML = '';
+  for (const t of traces) {
+    const li = document.createElement('li');
+    li.innerHTML = `<input type="checkbox" ${t.visible ? 'checked' : ''} aria-label="表示">
+      <input type="color" value="${t.color}" aria-label="色">
+      <input type="text" value="${escapeHtml(t.name)}" aria-label="名前">
+      <button class="${corrId === t.id ? 'on' : ''}" title="この曲線を差し引いて表示">補正</button>
+      <button aria-label="削除">削除</button>`;
+    const [cb, col, nm, bc, bd] = li.querySelectorAll('input,button');
+    cb.onchange = () => { t.visible = cb.checked; saveTraces(); };
+    col.oninput = () => { t.color = col.value; saveTraces(); };
+    nm.onchange = () => { t.name = nm.value.trim() || t.name; saveTraces(); };
+    bc.onclick = () => { corrId = corrId === t.id ? null : t.id; saveTraces(); renderTraces(); resetMeasure(); };
+    bd.onclick = () => {
+      if (!confirm(`「${t.name}」を削除しますか？`)) return;
+      traces = traces.filter(x => x !== t); if (corrId === t.id) corrId = null; saveTraces(); renderTraces();
+    };
+    ul.appendChild(li);
+  }
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type }));
+  a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+const stamp = () => new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '');
+$('bCsv').onclick = () => {
+  const list = traces.filter(t => t.visible);
+  const cols = list.map(t => '"' + t.name.replace(/"/g, '""') + '"');
+  const curLive = hasData(live);
+  if (curLive) cols.push('"現在"');
+  let s = 'freq_hz,' + cols.join(',') + '\n';
+  for (let i = 0; i < N; i++) {
+    const row = [gridF[i].toFixed(2)].concat(list.map(t => Number.isFinite(t.data[i]) ? t.data[i].toFixed(2) : ''));
+    if (curLive) row.push(Number.isFinite(live[i]) ? live[i].toFixed(2) : '');
+    s += row.join(',') + '\n';
+  }
+  download(`earphone-fr-${stamp()}.csv`, '﻿' + s, 'text/csv');
+};
+$('bJson').onclick = () => {
+  const out = { app: 'earphone-fr', version: 1, grid: { fmin: FMIN, fmax: FMAX, n: N },
+    traces: traces.map(t => Object.assign({}, t, { data: t.data.map(v => Number.isFinite(v) ? v : null) })) };
+  download(`earphone-fr-${stamp()}.json`, JSON.stringify(out), 'application/json');
+};
+$('bImport').onclick = () => $('fImport').click();
+$('fImport').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const j = JSON.parse(await f.text());
+    const list = (j.traces || []).filter(t => Array.isArray(t.data) && t.data.length === N);
+    for (const t of list) traces.push({ id: uid(), name: String(t.name || '読み込み'), color: /^#[0-9a-f]{6}$/i.test(t.color) ? t.color : nextColor(),
+      visible: true, mode: t.mode || 'single', data: t.data.map(v => typeof v === 'number' ? v : NaN), created: t.created || '' });
+    saveTraces(); renderTraces();
+    setStatus(`${list.length} 本の曲線を読み込みました`);
+  } catch (err) { setStatus('読み込めませんでした: ' + err.message, true); }
+  e.target.value = '';
+};
+traces.forEach(t => t.data = t.data.map(v => typeof v === 'number' ? v : NaN));
+
+// ---------- UI ----------
+function seg(id, key, cast, after) {
+  const el = $(id);
+  el.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    S[key] = cast ? cast(b.dataset.v) : b.dataset.v; saveSettings(); syncUI(); after && after();
+  });
+}
+seg('segAvg', 'avg', null, () => { avgN = 0; });
+seg('segSmooth', 'smooth', Number, () => { buildRanges(); peak.fill(-Infinity); valley.fill(Infinity); });
+seg('segW', 'weight', null, resetMeasure);
+seg('segNorm', 'norm', Number);
+seg('segMode', 'mode', null, () => {
+  if (S.mode === 'tf') { S.top = 20; S.range = 60; } else { S.top = DEF.top; S.range = DEF.range; }
+  saveSettings(); syncUI(); resetMeasure(); updateChInfo(stream && stream.getAudioTracks()[0] ? stream.getAudioTracks()[0].label : '');
+});
+seg('segCh', 'ch', null, () => { resetMeasure(); updateChInfo(stream && stream.getAudioTracks()[0] ? stream.getAudioTracks()[0].label : ''); });
+seg('segFft', 'fft', Number, () => { if (anA) { anA.fftSize = S.fft; anB.fftSize = S.fft; nBins = 0; resetMeasure(); setStatus(`測定中 — ${Math.round(ac.sampleRate / 100) / 10} kHz / FFT ${S.fft}`); } });
+seg('segGen', 'gen', null, () => { if (gen) genStart(); });
+seg('segSweepT', 'sweepT', Number, () => { if (gen && S.gen === 'sweep') genStart(); });
+seg('segOut', 'out', null, genUpdate);
+
+$('nTop').onchange = e => { const v = Number(e.target.value); if (Number.isFinite(v)) S.top = v; saveSettings(); };
+$('nRange').onchange = e => { const v = Number(e.target.value); if (v >= 10) S.range = v; saveSettings(); syncUI(); };
+$('nOffset').onchange = e => { const v = Number(e.target.value); if (Number.isFinite(v)) S.offset = v; saveSettings(); resetMeasure(); };
+$('rLevel').oninput = e => { S.level = Number(e.target.value); $('vLevel').textContent = S.level + ' dBFS'; genUpdate(); saveSettings(); };
+$('rFreq').oninput = e => { S.freq = Math.round(sliderToFreq(Number(e.target.value))); $('vFreq').textContent = fmtF(S.freq) + 'Hz'; genUpdate(); saveSettings(); };
+$('selDev').onchange = e => { S.deviceId = e.target.value; saveSettings(); if (running) startInput(); };
+
+$('bStart').onclick = () => { if (running) { stopInput(); setStatus('停止中'); syncUI(); } else startInput(); };
+$('bPause').onclick = () => { paused = !paused; setStatus(paused ? '一時停止中（表示を固定しています）' : '測定中'); syncUI(); };
+$('bReset').onclick = () => { resetMeasure(); };
+$('bPeak').onclick = () => { peakOn = !peakOn; if (peakOn) peak.fill(-Infinity); syncUI(); };
+$('bValley').onclick = () => { valleyOn = !valleyOn; if (valleyOn) valley.fill(Infinity); syncUI(); };
+$('bMarkers').onclick = () => { S.markers = !S.markers; saveSettings(); syncUI(); };
+$('bAuto').onclick = () => {
+  let mx = -Infinity;
+  const consider = arr => { const o = normOf(arr); for (let i = 0; i < N; i++) if (Number.isFinite(arr[i]) && arr[i] - o > mx) mx = arr[i] - o; };
+  consider(mainCurve()); traces.filter(t => t.visible).forEach(t => consider(t.data));
+  if (Number.isFinite(mx)) { S.top = Math.ceil((mx + 6) / 10) * 10; saveSettings(); syncUI(); }
+};
+$('bGen').onclick = () => { if (gen) genStop(); else genStart(); };
+$('bStore').onclick = storeTrace;
+$('tName').addEventListener('keydown', e => { if (e.key === 'Enter') storeTrace(); });
+
+function markSeg(id, val) { for (const b of $(id).querySelectorAll('button')) b.classList.toggle('on', b.dataset.v === String(val)); }
+function syncUI() {
+  markSeg('segAvg', S.avg); markSeg('segSmooth', S.smooth); markSeg('segW', S.weight); markSeg('segNorm', S.norm);
+  markSeg('segMode', S.mode); markSeg('segCh', S.ch); markSeg('segFft', S.fft); markSeg('segGen', S.gen);
+  markSeg('segSweepT', S.sweepT); markSeg('segOut', S.out);
+  $('nTop').value = S.top; $('nRange').value = S.range; $('nOffset').value = S.offset;
+  $('rLevel').value = S.level; $('vLevel').textContent = S.level + ' dBFS';
+  $('rFreq').value = freqToSlider(S.freq); $('vFreq').textContent = fmtF(S.freq) + 'Hz';
+  $('rowFreq').style.display = S.gen === 'sine' ? '' : 'none';
+  $('rowSweep').style.display = S.gen === 'sweep' ? '' : 'none';
+  $('segW').closest('.row').style.opacity = S.mode === 'tf' ? .45 : 1;
+  const bs = $('bStart'); bs.textContent = running ? '停止' : '開始'; bs.classList.toggle('primary', !running);
+  $('bPause').disabled = !running; $('bPause').textContent = paused ? '再開' : '一時停止'; $('bPause').classList.toggle('on', paused);
+  $('bPeak').classList.toggle('on', peakOn); $('bValley').classList.toggle('on', valleyOn); $('bMarkers').classList.toggle('on', S.markers);
+  const bg = $('bGen'); bg.textContent = gen ? '発振器 ON' : '発振器 OFF'; bg.classList.toggle('on', !!gen);
+  $('storeNote').textContent = peakOn ? 'ピーク保持がONなので、ピーク曲線を保存します。' : '現在の曲線を保存します（ピーク保持ONならピーク曲線を保存）。';
+}
+syncUI(); renderTraces(); updateReadout();
+requestAnimationFrame(frame);
+window.__efa = { S, live, peak, traces: () => traces, store: storeTrace };
+})();
+</script>
+</body>
+</html>
