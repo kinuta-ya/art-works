@@ -39,8 +39,8 @@ canvas{display:block;width:100%;height:min(58vh,520px);min-height:220px}
 #readout{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;min-height:24px;font-size:12px;color:var(--muted);padding:6px 2px;font-variant-numeric:tabular-nums}
 #readout b{color:var(--ink);font-weight:600}
 #readout .sw{display:inline-block;width:10px;height:3px;border-radius:2px;vertical-align:middle;margin-right:4px}
-.bar{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:4px 0 12px}
-@media (min-width:720px){.bar{grid-template-columns:repeat(8,1fr)}}
+.bar{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:4px 0 12px}
+@media (min-width:720px){.bar{grid-template-columns:repeat(9,1fr)}}
 button,select,input[type=text],input[type=number]{font:inherit;color:inherit}
 button{background:var(--btn);border:1px solid var(--line);border-radius:8px;padding:9px 6px;min-height:40px;cursor:pointer;line-height:1.2;
   -webkit-tap-highlight-color:transparent;user-select:none}
@@ -94,6 +94,7 @@ details ul,details ol{padding-left:20px;margin:4px 0}
   <button id="bMarkers" class="on">マーカー</button>
   <button id="bAuto">自動範囲</button>
   <button id="bGen">発振器 OFF</button>
+  <button id="bDemo">デモ信号</button>
 </div>
 
 <div class="panels">
@@ -250,8 +251,15 @@ async function startInput() {
   const st = tr && tr.getSettings ? tr.getSettings() : {};
   chCount = st.channelCount || 1;
   srcNode = ac.createMediaStreamSource(stream);
+  buildAnalysis(srcNode);
+  await listDevices();
+  updateChInfo(tr ? tr.label : '');
+  setStatus(`測定中 — ${Math.round(ac.sampleRate / 100) / 10} kHz / FFT ${S.fft}`);
+  syncUI();
+}
+function buildAnalysis(node) {
   splitter = ac.createChannelSplitter(2);
-  srcNode.connect(splitter);
+  node.connect(splitter);
   anA = ac.createAnalyser(); anB = ac.createAnalyser();
   for (const a of [anA, anB]) { a.fftSize = S.fft; a.smoothingTimeConstant = 0; }
   splitter.connect(anA, 0); splitter.connect(anB, 1);
@@ -259,13 +267,40 @@ async function startInput() {
   anA.connect(sink); anB.connect(sink); sink.connect(ac.destination);
   running = true; paused = false;
   resetMeasure();
-  await listDevices();
-  updateChInfo(tr ? tr.label : '');
-  setStatus(`測定中 — ${Math.round(ac.sampleRate / 100) / 10} kHz / FFT ${S.fft}`);
+}
+// ---------- デモ信号（マイクなしで動作を見るための架空のイヤホン） ----------
+const DEMOS = [
+  { name: 'デモA（低音強め）', f: [['lowshelf', 120, 0, 7], ['peaking', 2800, 1.2, 5], ['peaking', 6500, 4, -9], ['peaking', 8500, 3, 8], ['lowpass', 15000, 0.9, 0]] },
+  { name: 'デモB（フラット寄り）', f: [['lowshelf', 80, 0, 2], ['peaking', 3200, 1.5, 3], ['peaking', 7500, 5, -5], ['lowpass', 17000, 0.8, 0]] },
+  { name: 'デモC（高音強め）', f: [['highpass', 60, 0.7, 0], ['peaking', 2000, 1.5, -4], ['peaking', 5200, 1.5, 9], ['peaking', 9000, 3, 6], ['lowpass', 14000, 1, 0]] },
+];
+let demoIdx = -1, demoNodes = [];
+async function startDemo() {
+  ensureCtx(); try { await ac.resume(); } catch (e) {}
+  stopInput();
+  demoIdx = (demoIdx + 1) % DEMOS.length;
+  const d = DEMOS[demoIdx];
+  const src = ac.createBufferSource(); src.buffer = makeNoise('pink'); src.loop = true;
+  const merger = ac.createChannelMerger(2);
+  let last = src; demoNodes = [src, merger];
+  for (const [type, f, q, gain] of d.f) {
+    const bq = ac.createBiquadFilter(); bq.type = type; bq.frequency.value = f; if (q) bq.Q.value = q; bq.gain.value = gain;
+    last.connect(bq); last = bq; demoNodes.push(bq);
+  }
+  last.connect(merger, 0, 0);   // 1ch: 「イヤホンを通った音」
+  src.connect(merger, 0, 1);    // 2ch: 元の信号（基準）
+  src.start();
+  chCount = 2; srcNode = merger;
+  buildAnalysis(merger);
+  $('tName').value = d.name;
+  $('chInfo').textContent = `入力: ${d.name} — 2ch（1ch=イヤホンを通った音 / 2ch=元のピンクノイズ）`;
+  setStatus(`デモ再生中：${d.name}（音は出ません）— もう一度押すと別のデモに切り替わります`);
   syncUI();
 }
 function stopInput() {
   if (stream) stream.getTracks().forEach(t => t.stop());
+  for (const n of demoNodes) { try { n.stop && n.stop(); } catch (e) {} try { n.disconnect(); } catch (e) {} }
+  demoNodes = [];
   for (const n of [srcNode, splitter, anA, anB, sink]) { try { n && n.disconnect(); } catch (e) {} }
   stream = srcNode = splitter = anA = anB = sink = null;
   running = false;
@@ -705,6 +740,7 @@ $('bAuto').onclick = () => {
   consider(mainCurve()); traces.filter(t => t.visible).forEach(t => consider(t.data));
   if (Number.isFinite(mx)) { S.top = Math.ceil((mx + 6) / 10) * 10; saveSettings(); syncUI(); }
 };
+$('bDemo').onclick = startDemo;
 $('bGen').onclick = () => { if (gen) genStop(); else genStart(); };
 $('bStore').onclick = storeTrace;
 $('tName').addEventListener('keydown', e => { if (e.key === 'Enter') storeTrace(); });
