@@ -66,11 +66,12 @@ input[type=range]{flex:1;min-width:120px;accent-color:var(--accent)}
 .traces input[type=text]{min-width:0;width:100%}
 .traces button{min-height:32px;padding:4px 8px;font-size:12px}
 .empty{color:var(--muted);font-size:12px}
-details{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:12px}
-summary{font-weight:700;cursor:pointer}
-details h3{font-size:13px;margin:14px 0 4px}
-details p,details li{font-size:13px;color:var(--ink)}
-details ul,details ol{padding-left:20px;margin:4px 0}
+.help{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:4px 6px;margin-top:12px}
+.help-toggle{width:100%;display:flex;justify-content:space-between;align-items:center;background:none;border:none;font-weight:700;text-align:left;padding:10px 6px}
+#helpBody{padding:0 6px 10px}
+.help h3{font-size:13px;margin:14px 0 4px}
+.help p,.help li{font-size:13px;color:var(--ink)}
+.help ul,.help ol{padding-left:20px;margin:4px 0}
 .meter{flex:1;height:8px;background:var(--btn);border-radius:4px;overflow:hidden;min-width:100px}
 .meter i{display:block;height:100%;width:0;background:var(--accent)}
 </style>
@@ -150,8 +151,9 @@ details ul,details ol{padding-left:20px;margin:4px 0}
   </fieldset>
 </div>
 
-<details>
-  <summary>使い方と測定のしかた</summary>
+<section class="help">
+  <button id="bHelp" class="help-toggle" aria-expanded="false" aria-controls="helpBody"><span>使い方と測定のしかた</span><span id="helpIcon" aria-hidden="true">＋</span></button>
+  <div id="helpBody" hidden>
   <h3>基本（1ch・マイクのみ）</h3>
   <ol>
     <li>イヤホンを測定器具（カプラー：イヤホンとマイクを密着させる筒など）に取り付けます。</li>
@@ -178,7 +180,8 @@ details ul,details ol{padding-left:20px;margin:4px 0}
     <li>dB の値はデジタル入力のフルスケール基準（dBFS）です。音圧の絶対値ではありません。オフセットで調整できます。</li>
     <li>保存した曲線はこのブラウザ内にだけ残ります。端末を移すときはJSONで書き出して読み込んでください。</li>
   </ul>
-</details>
+  </div>
+</section>
 </div>
 
 <script>
@@ -748,6 +751,10 @@ $('bAuto').onclick = () => {
   if (Number.isFinite(mx)) { S.top = Math.ceil((mx + 6) / 10) * 10; saveSettings(); syncUI(); }
 };
 $('bDemo').onclick = startDemo;
+$('bHelp').onclick = () => {
+  const body = $('helpBody'), open = body.hidden;
+  body.hidden = !open; $('bHelp').setAttribute('aria-expanded', String(open)); $('helpIcon').textContent = open ? '－' : '＋';
+};
 $('bGen').onclick = () => { if (gen) genStop(); else genStart(); };
 $('bStore').onclick = storeTrace;
 $('tName').addEventListener('keydown', e => { if (e.key === 'Enter') storeTrace(); });
