@@ -659,7 +659,14 @@ function renderTraces() {
     ul.appendChild(li);
   }
 }
-function download(name, text, type) {
+let dlCap;
+if (window.claude && typeof window.claude.use === 'function') window.claude.use('downloads').then(d => { dlCap = d; }).catch(() => {});
+async function download(name, text, type) {
+  if (dlCap) {
+    try { await dlCap.save({ filename: name, data: text }); }
+    catch (e) { if (e && e.code !== 'declined') setStatus('書き出せませんでした: ' + (e.message || e.code), true); }
+    return;
+  }
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([text], { type }));
   a.download = name; document.body.appendChild(a); a.click();
